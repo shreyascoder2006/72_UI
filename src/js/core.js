@@ -122,11 +122,37 @@
     return { day: `${parts.weekday} ${parts.day} ${parts.month}`.toUpperCase(), time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`, hour: (+parts.hour % 24) + +parts.minute / 60 };
   }
 
+  // ── Sun ──────────────────────────────────────────────────────────────────
+  // Solar azimuth (degrees clockwise from north) and elevation (degrees above the
+  // horizon) for a UTC instant, from the NOAA low-precision ephemeris (~0.1°).
+  function sunPosition(date, lat, lng) {
+    const r = Math.PI / 180;
+    const d = date.getTime() / 86400000 + 2440587.5 - 2451545.0; // days since J2000
+    const g = (357.529 + 0.98560028 * d) * r;
+    const q = 280.459 + 0.98564736 * d;
+    const L = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * r;
+    const e = (23.439 - 0.00000036 * d) * r;
+    const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+    const dec = Math.asin(Math.sin(e) * Math.sin(L));
+    const gmst = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24;
+    const H = (gmst * 15 + lng) * r - ra;
+    const phi = lat * r;
+    const elev = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) + Math.PI;
+    return { azimuth: ((az / r) % 360 + 360) % 360, elevation: elev / r };
+  }
+  // Time-of-day phase as used by Mapbox Standard light presets.
+  function dayPhase(sun) {
+    if (sun.elevation >= 6) return 'day';
+    if (sun.elevation <= -6) return 'night';
+    return sun.azimuth < 180 ? 'dawn' : 'dusk';
+  }
+
   TWIN.core = {
     STATES, CRIT, stateOf, RISK_HEX, riskColor, TYPES,
     mulberry32, hash3, tnoise, gauss,
     clamp, lerp, sigmoid, bump, quantile,
     haversine, bearing, measure, along,
-    pct, fmtT, fmtDur, clockAt,
+    pct, fmtT, fmtDur, clockAt, sunPosition, dayPhase,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

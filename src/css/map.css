@@ -152,3 +152,14 @@
   .tl { margin-left: 52px; height: 70px; }
   .controls { max-width: none; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; }
 }
+
+/* Horizon haze over the MapLibre city (style.js): strongest on the horizon line and
+   fading toward the viewer; sized and placed from the camera on every move. */
+.twin-haze {
+  position: absolute; left: 0; top: 0; pointer-events: none;
+  background: linear-gradient(to bottom,
+    transparent calc(var(--hy, -200px) - 8vh),
+    var(--haze, rgba(86, 104, 124, 0.3)) var(--hy, -200px),
+    transparent calc(var(--hy, -200px) + 34vh));
+  transition: opacity 0.2s linear;
+}

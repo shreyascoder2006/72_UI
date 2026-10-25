@@ -74,7 +74,10 @@
 
     // ── Layers ──
     const R0 = new Array(N + 1).fill(0.1);
-    const L = (spec, before = BEFORE) => map.addLayer(spec, before);
+    // MapLibre: insert below the building extrusions. Mapbox Standard: use its slots
+    // ('middle' = above roads, behind 3D buildings; 'top' = above everything but labels).
+    const L = (spec, before = BEFORE) => (opts.slot ? map.addLayer({ ...spec, slot: 'middle' }) : map.addLayer(spec, before));
+    const TOP = (spec) => (opts.slot ? map.addLayer({ ...spec, slot: 'top' }) : map.addLayer(spec));
     const meters = (m) => G.metersExpr(lat, m);
 
     L({ id: 'cov-fill', type: 'fill', source: 'cov', paint: { 'fill-color': '#b39af0', 'fill-opacity': 0.06 } });
@@ -120,15 +123,15 @@
       paint: { 'icon-opacity': ['+', 0.55, ['*', 0.45, ['get', 'flow']]] } });
 
     // Above the buildings
-    map.addLayer({ id: 'arcs-confirmed', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'confirmed'], layout: { visibility: 'none', 'line-cap': 'round' },
+    TOP({ id: 'arcs-confirmed', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'confirmed'], layout: { visibility: 'none', 'line-cap': 'round' },
       paint: { 'line-color': '#79a7e3', 'line-width': ['+', 0.8, ['*', 4, ['get', 'mean']]], 'line-opacity': ['case', ['==', ['get', 'active'], 1], 0.95, 0.55] } });
-    map.addLayer({ id: 'arcs-candidate', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'candidate'], layout: { visibility: 'none' },
+    TOP({ id: 'arcs-candidate', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'candidate'], layout: { visibility: 'none' },
       paint: { 'line-color': '#8a939e', 'line-width': 1, 'line-opacity': 0.45, 'line-dasharray': [2, 2] } });
-    map.addLayer({ id: 'arcs-pruned', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'pruned'], layout: { visibility: 'none' },
+    TOP({ id: 'arcs-pruned', type: 'line', source: 'arcs', filter: ['==', ['get', 'status'], 'pruned'], layout: { visibility: 'none' },
       paint: { 'line-color': '#e5484d', 'line-width': 1, 'line-opacity': 0.4, 'line-dasharray': [0.6, 2.2] } });
-    map.addLayer({ id: 'sel-ring', type: 'circle', source: 'sel',
+    TOP({ id: 'sel-ring', type: 'circle', source: 'sel',
       paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 10, 17, 34], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.4, 'circle-stroke-opacity': 0.85, 'circle-pitch-alignment': 'map' } });
-    map.addLayer({ id: 'district-label', type: 'symbol', source: 'districts', maxzoom: 15.2,
+    TOP({ id: 'district-label', type: 'symbol', source: 'districts', maxzoom: 15.2,
       layout: { 'text-field': ['get', 'name'], 'text-font': opts.labelFont || ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 9, 15, 11.5], 'text-letter-spacing': 0.36, 'text-allow-overlap': false },
       paint: { 'text-color': 'rgba(196,206,220,0.4)', 'text-halo-color': 'rgba(8,10,12,0.75)', 'text-halo-width': 0.8, 'text-halo-blur': 0.6 } });
 
@@ -141,10 +144,13 @@
       flows: ['flows-glow', 'flows-dash', 'flows-arrow'],
       arcs: ['arcs-confirmed', 'arcs-candidate', 'arcs-pruned'],
       labels: ['road-label', 'district-label'],
-      buildings: ['building-3d'],
+      buildings: root.TWIN.style.BUILDING_LAYERS,
     };
+    // Basemap parts of Mapbox Standard are switched through its configuration.
+    const STANDARD_GROUPS = { buildings: ['show3dObjects'], labels: ['showRoadLabels', 'showPlaceLabels'] };
     function setGroup(key, on) {
       for (const id of GROUPS[key] || []) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+      if (opts.slot) for (const prop of STANDARD_GROUPS[key] || []) { try { map.setConfigProperty('basemap', prop, on); } catch (e) { /* older style */ } }
     }
 
     // ── Updates ──

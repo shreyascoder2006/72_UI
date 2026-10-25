@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Facility model build</title>
+<style>html,body{margin:0;background:#0b0d10}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+/* Builds the facility hero models (tools/models/facility_models.js), renders QA
+   previews and exports GLB. Driven by tools/models/export_models.js. */
+import * as THREE from 'three';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { TEXTURED, PLAIN, GENERATED, createKit } from './facility_models.js';
+
+const TEX = '../../data/models/textures/';
+const kit = createKit(THREE, mergeGeometries, mergeVertices);
+
+// ── Generated decals ──────────────────────────────────────────────────────
+function canvas(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
+const gen = {
+  helipad: canvas(512, 512, (g, w) => {
+    g.clearRect(0, 0, w, w);
+    g.fillStyle = '#3c4146'; g.beginPath(); g.arc(w / 2, w / 2, w * 0.495, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#f2f2ee'; g.lineWidth = 16; g.beginPath(); g.arc(w / 2, w / 2, w * 0.44, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = '#e8c547'; g.lineWidth = 10; g.beginPath(); g.arc(w / 2, w / 2, w * 0.4, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#c2272d'; g.fillRect(w * 0.29, w * 0.29, w * 0.42, w * 0.42);
+    g.fillStyle = '#f2f2ee'; g.font = 'bold 190px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('H', w / 2, w / 2 + 8);
+  }),
+  emergency: canvas(1024, 128, (g, w, h) => {
+    g.fillStyle = '#7a0d10'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffffff'; g.font = 'bold 92px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EMERGENCY', w / 2, h / 2 + 4);
+  }),
+  emsSign: canvas(1024, 128, (g, w, h) => {
+    g.fillStyle = '#1a1c1f'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#f4f4f2'; g.font = 'bold 84px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EMS STATION', w / 2, h / 2 + 4);
+  }),
+  chainlink: canvas(256, 256, (g, w) => {
+    g.clearRect(0, 0, w, w); g.strokeStyle = 'rgba(205,210,214,1)'; g.lineWidth = 3.2;
+    const s = w / 8;
+    for (let k = -8; k <= 16; k++) {
+      g.beginPath(); g.moveTo(k * s, 0); g.lineTo(k * s + w, w); g.stroke();
+      g.beginPath(); g.moveTo(k * s, w); g.lineTo(k * s + w, 0); g.stroke();
+    }
+  }),
+};
+
+// ── Materials ─────────────────────────────────────────────────────────────
+const loader = new THREE.TextureLoader();
+const loadTex = (file, name, srgb) => new Promise((res, rej) => loader.load(TEX + file, (t) => {
+  t.name = name; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.userData.mimeType = 'image/jpeg';
+  res(t);
+}, undefined, rej));
+
+async function materials() {
+  const M = {};
+  const sets = {};
+  for (const def of Object.values(TEXTURED)) {
+    if (sets[def.tex]) continue;
+    const [diff, nor, arm] = await Promise.all([
+      loadTex(def.tex + '_diff.jpg', def.tex + '_diff', true),
+      loadTex(def.tex + '_nor.jpg', def.tex + '_nor', false),
+      loadTex(def.tex + '_arm.jpg', def.tex + '_arm', false),
+    ]);
+    sets[def.tex] = { diff, nor, arm };
+  }
+  for (const [key, def] of Object.entries(TEXTURED)) {
+    const s = sets[def.tex];
+    M[key] = new THREE.MeshStandardMaterial({
+      name: key, map: s.diff, normalMap: s.nor, roughnessMap: s.arm, metalnessMap: s.arm, aoMap: s.arm,
+      color: def.color || '#ffffff', roughness: 1, metalness: 1,
+    });
+  }
+  for (const [key, def] of Object.entries(PLAIN)) {
+    M[key] = new THREE.MeshStandardMaterial({
+      name: key, color: def.color, metalness: def.metalness ?? 0, roughness: def.roughness ?? 0.6,
+      emissive: def.emissive || '#000000', emissiveIntensity: def.emissiveIntensity ?? 1,
+    });
+    if (def.night) M[key].userData.night = def.night;
+  }
+  kit.CAR_COLORS.forEach((c, k) => { M['car' + k] = new THREE.MeshStandardMaterial({ name: 'car' + k, color: c, metalness: 0.55, roughness: 0.32 }); });
+  for (const [key, def] of Object.entries(GENERATED)) {
+    const t = new THREE.CanvasTexture(gen[key]);
+    t.name = 'gen_' + key; t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.userData.mimeType = 'image/png';
+    M[key] = new THREE.MeshStandardMaterial({ name: key, map: t, roughness: 0.6, metalness: def.alpha ? 0.8 : 0.1 });
+    if (def.alpha) { M[key].alphaTest = 0.5; M[key].side = THREE.DoubleSide; M[key].color.set('#c9ced3'); }
+    if (def.cutout) M[key].alphaTest = 0.5;
+    if (key === 'emergency') { M[key].emissiveMap = t; M[key].emissive.set('#ffffff'); M[key].emissiveIntensity = 1.4; }
+    if (key === 'emsSign') { M[key].emissiveMap = t; M[key].emissive.set('#ffffff'); M[key].emissiveIntensity = 0.9; }
+  }
+  return M;
+}
+
+// ── Preview renderer ──────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(1280, 800);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+function preview(group, opts) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#0d1014');
+  scene.environment = envTex;
+  scene.environmentIntensity = 0.55;
+  const box = new THREE.Box3().setFromObject(group);
+  const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const R = Math.max(size.x, size.z) * 0.62 + size.y * 0.4;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(R * 8, R * 8), new THREE.MeshStandardMaterial({ color: '#1a1d22', roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  scene.add(group);
+  scene.add(new THREE.HemisphereLight('#c9d6e6', '#2a2620', 0.55));
+  const sun = new THREE.DirectionalLight('#fff1dc', 2.6);
+  const az = THREE.MathUtils.degToRad(opts.az ?? 215), el = THREE.MathUtils.degToRad(opts.el ?? 38);
+  sun.position.set(c.x + Math.sin(az) * Math.cos(el) * R * 3, Math.sin(el) * R * 3, c.z - Math.cos(az) * Math.cos(el) * R * 3);
+  sun.target.position.copy(c); scene.add(sun.target);
+  sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+  const sc = sun.shadow.camera; sc.left = sc.bottom = -R * 1.4; sc.right = sc.top = R * 1.4; sc.near = 0.1; sc.far = R * 8;
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+  const cam = new THREE.PerspectiveCamera(opts.fov ?? 32, 1280 / 800, 0.5, R * 20);
+  const ca = THREE.MathUtils.degToRad(opts.camAz ?? 35), ce = THREE.MathUtils.degToRad(opts.camEl ?? 34), dist = R * (opts.dist ?? 2.25);
+  cam.position.set(c.x + Math.sin(ca) * Math.cos(ce) * dist, c.y + Math.sin(ce) * dist, c.z + Math.cos(ca) * Math.cos(ce) * dist);
+  cam.lookAt(c.x, c.y * 0.6, c.z);
+  renderer.render(scene, cam);
+  scene.remove(group);
+}
+
+// ── Build, preview, export ────────────────────────────────────────────────
+const M = await materials();
+const FACILITIES = ['hospital', 'ems', 'pump', 'substation', 'traffic', 'weather'];
+const groups = {};
+for (const name of FACILITIES) {
+  const g = kit[name]().merge(M);
+  g.name = name;
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = o.castShadow !== false; } });
+  groups[name] = g;
+}
+window.__stats = Object.fromEntries(FACILITIES.map((n) => {
+  let tris = 0, meshes = 0;
+  groups[n].traverse((o) => { if (o.isMesh) { meshes++; tris += o.geometry.attributes.position.count / 3; } });
+  const s = new THREE.Box3().setFromObject(groups[n]).getSize(new THREE.Vector3());
+  return [n, { meshes, tris: Math.round(tris), size: [s.x, s.y, s.z].map((v) => +v.toFixed(1)) }];
+}));
+window.renderPreview = (name, opts = {}) => preview(groups[name], opts);
+window.__gen = Object.fromEntries(Object.entries(gen).map(([k, c]) => [k, c.toDataURL('image/png')]));
+
+// Export: swap images for 1x1 placeholders (textures are referenced by name and
+// written as external files by tools/models/externalize.py).
+window.exportAll = async () => {
+  const placeholder = () => canvas(1, 1, (g) => { g.fillStyle = '#808080'; g.fillRect(0, 0, 1, 1); });
+  const seen = new Set();
+  for (const m of Object.values(M)) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) {
+    const t = m[k];
+    if (t && !seen.has(t)) { seen.add(t); t.image = placeholder(); t.needsUpdate = true; }
+  }
+  const out = {};
+  const exporter = new GLTFExporter();
+  for (const name of FACILITIES) {
+    const buf = await exporter.parseAsync(groups[name], { binary: true });
+    let bin = '';
+    const u8 = new Uint8Array(buf);
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    out[name] = btoa(bin);
+  }
+  return out;
+};
+window.__ready = true;
+</script>
+</body>
+</html>

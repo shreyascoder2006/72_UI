@@ -189,3 +189,161 @@ def decode(data, z, x, y, layers=None, clip=True):
                 coords = [c[0] for c in coords]
             res.append({"type": gtype, "props": props, "coords": coords})
     return out
+
+
+# ── Raw editing: re-encode one layer, copy the rest byte for byte ─────────────
+
+def _varint_bytes(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
+def _key(field, wire):
+    return _varint_bytes((field << 3) | wire)
+
+
+def _len_field(field, payload):
+    return _key(field, 2) + _varint_bytes(len(payload)) + payload
+
+
+def _packed_bytes(values):
+    return b"".join(_varint_bytes(v) for v in values)
+
+
+def _zz(n):
+    return (n << 1) ^ (n >> 63)
+
+
+def split_layers(data):
+    """[(name, raw_layer_bytes)] in tile order."""
+    out = []
+    for field, _, lbuf in _fields(memoryview(data)):
+        if field != 3:
+            continue
+        name = None
+        for f2, _, v2 in _fields(lbuf):
+            if f2 == 1:
+                name = bytes(v2).decode()
+                break
+        out.append((name, bytes(lbuf)))
+    return out
+
+
+def join_layers(layers):
+    return b"".join(_len_field(3, raw) for _, raw in layers)
+
+
+def read_layer(raw):
+    """Decode a layer keeping integer geometry: features carry rings in tile units."""
+    layer = {"name": None, "extent": 4096, "version": 2, "keys": [], "values": [], "features": []}
+    for f2, _, v2 in _fields(memoryview(raw)):
+        if f2 == 1:
+            layer["name"] = bytes(v2).decode()
+        elif f2 == 2:
+            fid, tags, gtype, geom = None, [], 0, []
+            for f3, _, v3 in _fields(v2):
+                if f3 == 1:
+                    fid = v3
+                elif f3 == 2:
+                    tags = _packed(v3)
+                elif f3 == 3:
+                    gtype = v3
+                elif f3 == 4:
+                    geom = _packed(v3)
+            layer["features"].append({"id": fid, "tags": tags, "type": gtype, "rings": _rings(geom)})
+        elif f2 == 3:
+            layer["keys"].append(bytes(v2).decode())
+        elif f2 == 4:
+            layer["values"].append(bytes(v2))
+        elif f2 == 5:
+            layer["extent"] = v2
+        elif f2 == 15:
+            layer["version"] = v2
+    return layer
+
+
+def value_of(layer, idx):
+    return _value(memoryview(layer["values"][idx]))
+
+
+def encode_value(v):
+    if isinstance(v, bool):
+        return _key(7, 0) + _varint_bytes(int(v))
+    if isinstance(v, int):
+        return (_key(5, 0) + _varint_bytes(v)) if v >= 0 else (_key(6, 0) + _varint_bytes(_zz(v)))
+    if isinstance(v, float):
+        return _key(3, 1) + struct.pack("<d", v)
+    return _len_field(1, str(v).encode())
+
+
+def ring_area2(ring):
+    """Twice the signed area in tile units (y down: exterior rings are positive)."""
+    pts = ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else ring
+    return sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))
+
+
+def polygons(rings):
+    """Group rings into [exterior, *holes] polygons by winding."""
+    out = []
+    for r in rings:
+        a = ring_area2(r)
+        if a > 0 or not out:
+            out.append([r])
+        elif a < 0:
+            out[-1].append(r)
+    return out
+
+
+def encode_polygon_geometry(polys):
+    cmds, cx, cy = [], 0, 0
+    for poly in polys:
+        for ring in poly:
+            pts = ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else ring
+            if len(pts) < 3:
+                continue
+            x, y = pts[0]
+            cmds += [(1 & 7) | (1 << 3), _zz(x - cx), _zz(y - cy)]
+            cx, cy = x, y
+            cmds.append((2 & 7) | ((len(pts) - 1) << 3))
+            for x, y in pts[1:]:
+                cmds += [_zz(x - cx), _zz(y - cy)]
+                cx, cy = x, y
+            cmds.append(7 | (1 << 3))
+    return cmds
+
+
+def write_layer(name, extent, version, features):
+    """features: [{'props': {..}, 'polys': [[ring, *holes], ...]}] (polygon layers)."""
+    keys, kidx, vals, vidx = [], {}, [], {}
+    fbufs = []
+    for f in features:
+        tags = []
+        for k, v in f["props"].items():
+            if v is None:
+                continue
+            if k not in kidx:
+                kidx[k] = len(keys)
+                keys.append(k)
+            ev = encode_value(v)
+            if ev not in vidx:
+                vidx[ev] = len(vals)
+                vals.append(ev)
+            tags += [kidx[k], vidx[ev]]
+        geom = encode_polygon_geometry(f["polys"])
+        if not geom:
+            continue
+        fb = _len_field(2, _packed_bytes(tags)) + _key(3, 0) + _varint_bytes(3) + _len_field(4, _packed_bytes(geom))
+        fbufs.append(fb)
+    out = _key(15, 0) + _varint_bytes(version) + _len_field(1, name.encode())
+    out += b"".join(_len_field(2, fb) for fb in fbufs)
+    out += b"".join(_len_field(3, k.encode()) for k in keys)
+    out += b"".join(_len_field(4, v) for v in vals)
+    out += _key(5, 0) + _varint_bytes(extent)
+    return out

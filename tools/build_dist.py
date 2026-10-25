@@ -7,6 +7,8 @@ Writes
   dist/artifact.html  the same page without the document wrapper (for hosts that add one)
   dist/data/bundles/  the OpenStreetMap vector tiles and label glyphs, packed as base64 JSON
                       bundles (some hosts serve only text and web media types, not .pbf)
+  dist/data/models/   the facility hero models: each .glb as a base64 JSON bundle, plus the
+                      shared texture images they reference
 """
 import base64
 import glob
@@ -41,9 +43,9 @@ def main():
     head_out = "".join(f'<link rel="stylesheet" href="{f}">\n' for f in fonts) + "<style>\n" + css + "\n</style>\n"
 
     scripts = block(html, "SCRIPTS")
-    local = re.findall(r'<script src="((?:config\.js|src/js/[^"]+))"></script>', scripts.group(1))
+    local = re.findall(r'<script src="((?:config\.js|src/js/[^"]+|src/vendor/earcut[^"]+))"></script>', scripts.group(1))
     js = "\n;\n".join(read(src) for src in local).replace("</script", "<\\/script")
-    js = 'window.TWIN_CONFIG = { tileBundles: "data/bundles/index.json" };\n' + js
+    js = 'window.TWIN_CONFIG = { tileBundles: "data/bundles/index.json", modelBundles: "data/models/bundles/index.json" };\n' + js
     scripts_out = f'<script src="{MAPLIBRE}"></script>\n<script>\n{js}\n</script>\n'
 
     full = html[:head.start()] + head_out + html[head.end():scripts.start()] + scripts_out + html[scripts.end():]
@@ -92,6 +94,19 @@ def main():
             json.dump(content, fh, separators=(",", ":"))
     with open(os.path.join(out, "index.json"), "w") as fh:
         json.dump(index, fh, separators=(",", ":"))
+    # Hero models: GLB is not a web media type everywhere, so wrap each in JSON.
+    models_out = os.path.join(data_out, "models")
+    os.makedirs(os.path.join(models_out, "bundles"))
+    shutil.copytree(os.path.join(ROOT, "data", "models", "textures"), os.path.join(models_out, "textures"))
+    model_index = {}
+    for path in sorted(glob.glob(os.path.join(ROOT, "data", "models", "*.glb"))):
+        name = os.path.basename(path)[:-4]
+        rel = f"data/models/bundles/{name}.json"
+        with open(os.path.join(DIST, rel), "w") as fh:
+            json.dump({"glb": base64.b64encode(open(path, "rb").read()).decode()}, fh)
+        model_index[name] = rel
+    with open(os.path.join(models_out, "bundles", "index.json"), "w") as fh:
+        json.dump(model_index, fh)
     sizes = ", ".join(f"{n} {os.path.getsize(os.path.join(out, n + '.json')) / 1e6:.1f} MB" for n in sorted(groups))
     print(f"dist/index.html {len(full) / 1024:.0f} KB · dist/artifact.html {len(frag) / 1024:.0f} KB")
     print(f"bundles: {sizes}")

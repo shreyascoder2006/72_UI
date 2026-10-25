@@ -20,6 +20,8 @@
     view: null,
   };
 
+  const simDate = (t) => new Date(new Date(app.geo.t0).getTime() + t * 3600e3);
+
   // ── View ───────────────────────────────────────────────────────────────
   function computeView() {
     const e = app.engine, s = app.state;
@@ -42,12 +44,21 @@
     app.view = computeView();
 
     await step('Loading Raleigh city model · OpenStreetMap buildings and streets…');
-    const tm = await T.twinmap.create($('map'), app.geo, root.TWIN_CONFIG || {});
+    const tm = await T.twinmap.create($('map'), app.geo, { ...(root.TWIN_CONFIG || {}), startDate: simDate(app.state.t) });
     app.tm = tm;
     app.map = tm.map;
-    app.layers = T.layers.install(tm.map, app.geo, { labelFont: tm.labelFont });
-    app.radar = T.radar.install(tm.map, app.geo, 'arcs-confirmed');
+    app.layers = T.layers.install(tm.map, app.geo, { labelFont: tm.labelFont, slot: tm.slot });
+    app.radar = T.radar.install(tm.map, app.geo, 'arcs-confirmed', tm.slot);
     app.markers = T.markers.install(tm.gl, tm.map, app.geo, (i) => app.select(i, { fly: true }));
+    // City buildings with facades, roofs and sun shadows (MapLibre; null keeps the style's extrusions).
+    const cfg = root.TWIN_CONFIG || {};
+    app.buildings = T.buildings.install(tm, app.geo, { enabled: cfg.cityBuildings, shadows: cfg.buildingShadows, shadowSize: cfg.shadowSize });
+    // Detailed 3D model of the selected facility; it stays in place after deselection.
+    const hideSite = (i) => { T.style.hideSite(tm.map, i); if (app.buildings) app.buildings.hideSite(i); };
+    app.heroes = T.heroes.install(tm, app.geo, {
+      base: tm.base, modelBundles: (root.TWIN_CONFIG || {}).modelBundles,
+      onShow: (i) => hideSite(i), onHide: () => hideSite(null),
+    });
     precomputePaths();
 
     await step('Starting command center…');
@@ -89,6 +100,7 @@
     const e = app.engine;
     // Map
     app.markers.update(v.R, v.trust);
+    app.heroes.update(v.R);
     app.layers.update(v.R, { diurnal: e.diurnal(v.t), flows: flows(v), arcs: app.state.layers.arcs ? arcs(v) : null });
     if (app.state.layers.weather) drawRadar(v);
     // Panels
@@ -105,8 +117,11 @@
     if (app.state.playing) detectStageEvents(v);
   }
 
+  let lastSunT = -1;
   function renderLight(v) {
     app.timeline.update(v);
+    // Sun, sky and shadows follow the scrubbed time (every ~3 simulated minutes).
+    if (Math.abs(v.t - lastSunT) >= 0.05) { lastSunT = v.t; app.tm.setSimTime(simDate(v.t)); }
     const ck = C.clockAt(app.geo.t0, v.t);
     $('clockT').textContent = fmtT(v.t);
     $('clockD').textContent = `${ck.day} · ${ck.time} EDT`;
@@ -274,6 +289,7 @@
     app.layers.select(i);
     document.getElementById('app').classList.toggle('inspecting', i != null);
     if (i != null) {
+      app.heroes.focus(i);
       app.inspector.open(i);
       app.sidebar.scrollTo(i);
       if (opts.fly) { app.tm.orbit(false); s.orbit = false; $('orbit').setAttribute('aria-pressed', 'false'); }

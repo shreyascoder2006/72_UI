@@ -43,7 +43,7 @@
     return out;
   }
 
-  function install(map, geo, before) {
+  function install(map, geo, before, slot) {
     const [W, S, E, N] = geo.extent;
     const canvas = document.createElement('canvas');
     canvas.width = OUT; canvas.height = OUT;
@@ -55,7 +55,8 @@
     const NS = 128, noise = noiseTexture(NS, 4242);
 
     map.addSource('radar', { type: 'canvas', canvas, coordinates: [[W, N], [E, N], [E, S], [W, S]], animate: true });
-    map.addLayer({ id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': 0.62, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, before);
+    const spec = { id: 'radar', type: 'raster', source: 'radar', paint: { 'raster-opacity': 0.62, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } };
+    slot ? map.addLayer({ ...spec, slot: 'top' }) : map.addLayer(spec, before);
 
     let field = null, heading = 40;
     function draw(rainAt, t, hdg) {

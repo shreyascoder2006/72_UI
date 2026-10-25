@@ -1,8 +1,9 @@
 /* Map bootstrap: renderer selection, offline tiles, camera, and the layer stack.
 
    Renderers (same API surface, see README):
-     • Mapbox GL JS v3, when TWIN_CONFIG.mapboxToken is set: Mapbox dark-v11 restyled,
-       3D buildings from Mapbox Streets.
+     • Mapbox GL JS v3, when TWIN_CONFIG.mapboxToken is set: the Mapbox Standard style
+       (real 3D buildings, facades, landmarks, shadows, atmosphere), its light preset
+       following the simulation clock and its palette pulled toward the dark CIM look.
      • MapLibre GL JS (the open-source continuation of Mapbox GL JS) otherwise, on the
        OpenStreetMap vector tiles baked into data/tiles, served through a twin://
        protocol so the twin works offline and inside sandboxed frames. If the local
@@ -10,7 +11,20 @@
        OpenFreeMap tiles. */
 (function (root) {
   const OVERVIEW = { center: [-78.6440, 35.7990], zoom: 13.05, pitch: 58, bearing: -20 };
-  const MAPBOX_VER = '3.7.0';
+  const MAPBOX_VER = '3.31.0';
+  // Mapbox Standard configuration: realistic geometry and lighting, desaturated
+  // command-center palette, no consumer POI clutter.
+  const STANDARD = {
+    theme: 'monochrome', font: 'Barlow',
+    show3dObjects: true, show3dBuildings: true, show3dFacades: true, show3dLandmarks: true, show3dTrees: true,
+    showPointOfInterestLabels: false, showTransitLabels: false, showPedestrianRoads: false,
+    showLandmarkIcons: false, showLandmarkIconLabels: false, showAdminBoundaries: false,
+    showPlaceLabels: true, showRoadLabels: true,
+    colorBuildings: '#3b4149', colorLand: '#101215', colorGreenspace: '#121a16', colorWater: '#0c1925',
+    colorRoads: '#2b3037', colorTrunks: '#323841', colorMotorways: '#3a414b',
+    colorCommercial: '#15181c', colorIndustrial: '#151719', colorMedical: '#17191d', colorEducation: '#16181b',
+    colorPlaceLabels: '#9aa4b0', colorRoadLabels: '#6e7783',
+  };
 
   function baseURL(cfg) {
     if (cfg.dataBase) return cfg.dataBase.replace(/\/?$/, '/');
@@ -50,6 +64,19 @@
     };
   }
 
+  // Every building-zoom tile MapLibre loads is also handed (as a copy: MapLibre transfers
+  // the original to its worker) to listeners such as the city-buildings renderer.
+  const tileStore = new Map(), tileListeners = [];
+  function tapTile(key, buf) {
+    if (buf.byteLength && +key.split('/')[0] >= 13 && !tileStore.has(key)) {
+      const copy = buf.slice(0);
+      tileStore.set(key, copy);
+      for (const cb of tileListeners) cb(key, copy);
+    }
+    return buf;
+  }
+  function onTile(cb) { for (const [k, b] of tileStore) cb(k, b); tileListeners.push(cb); }
+
   function loadScript(src) {
     return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
   }
@@ -62,30 +89,24 @@
     }
     const gl = root.mapboxgl;
     gl.accessToken = cfg.mapboxToken;
-    const map = new gl.Map({ container, style: 'mapbox://styles/mapbox/dark-v11', ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75, projection: 'mercator' });
+    const lightPreset = root.TWIN.core.dayPhase(root.TWIN.core.sunPosition(cfg.startDate || new Date(), geo.center[1], geo.center[0]));
+    const map = new gl.Map({
+      container, style: 'mapbox://styles/mapbox/standard', config: { basemap: { ...STANDARD, lightPreset } },
+      ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75, projection: 'mercator',
+    });
     await new Promise((res, rej) => {
-      const to = setTimeout(() => rej(new Error('Mapbox style timeout')), 12000);
+      const to = setTimeout(() => rej(new Error('Mapbox style timeout')), 15000);
       map.once('style.load', () => { clearTimeout(to); res(); });
       map.on('error', (e) => { if (e && e.error && /401|403|token/i.test(String(e.error.message || e.error.status))) { clearTimeout(to); rej(e.error); } });
     });
-    // Desaturate the Mapbox style toward the twin palette and add massing.
-    const C = root.TWIN.style.COLORS;
-    for (const l of map.getStyle().layers) {
-      try {
-        if (l.type === 'background') map.setPaintProperty(l.id, 'background-color', C.bg);
-        if (l.id.startsWith('water')) l.type === 'fill' ? map.setPaintProperty(l.id, 'fill-color', C.water) : null;
-        if (l.id === 'building') map.setLayoutProperty(l.id, 'visibility', 'none');
-      } catch (e) { /* layer without that property */ }
+    // Re-assert the configuration property by property: older style revisions ignore
+    // unknown keys in the constructor, and each call is harmless if a key is absent.
+    for (const [k, v] of Object.entries({ ...STANDARD, lightPreset })) {
+      try { map.setConfigProperty('basemap', k, v); } catch (e) { /* property not in this Standard revision */ }
     }
-    const firstSymbol = map.getStyle().layers.find((l) => l.type === 'symbol');
-    map.addLayer({
-      id: 'building-3d', type: 'fill-extrusion', source: 'composite', 'source-layer': 'building', minzoom: 12.5, filter: ['==', ['get', 'extrude'], 'true'],
-      paint: {
-        'fill-extrusion-color': ['interpolate', ['linear'], ['get', 'height'], 0, '#242a32', 12, '#2b323b', 30, '#353d48', 70, '#444d5a', 160, '#5a6472'],
-        'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'min_height'], 'fill-extrusion-opacity': 0.94,
-      },
-    }, firstSymbol && firstSymbol.id);
-    return { gl, map, renderer: 'Mapbox GL JS ' + gl.version, labelFont: ['DIN Pro Bold', 'Arial Unicode MS Bold'] };
+    // Standard supplies its own 3D buildings, so no fill-extrusion layer is added here.
+    // Custom layers go into its slots: 'middle' sits above roads and behind 3D buildings.
+    return { gl, map, mode: 'mapbox', slot: true, lightPreset, renderer: `Mapbox GL JS ${gl.version} · Standard`, labelFont: ['DIN Pro Bold', 'Arial Unicode MS Bold'] };
   }
 
   async function createMapLibre(container, geo, cfg) {
@@ -100,7 +121,7 @@
         gl.addProtocol('twin', async (params, abort) => {
           const u = params.url.slice('twin://'.length);
           if (fromBundle) {
-            if (u.startsWith('tiles/')) return { data: await fromBundle('tiles', u.slice(6)) };
+            if (u.startsWith('tiles/')) return { data: tapTile(u.slice(6), await fromBundle('tiles', u.slice(6))) };
             const [, stack, range] = u.split('/');
             return { data: await fromBundle('fonts', slug(stack.split(',')[0]) + '/' + range) };
           }
@@ -110,7 +131,8 @@
           try {
             const r = await fetch(path, { signal: abort && abort.signal });
             if (!r.ok) return { data: new ArrayBuffer(0) };
-            return { data: await r.arrayBuffer() };
+            const buf = await r.arrayBuffer();
+            return { data: u.startsWith('tiles/') ? tapTile(u.slice(6), buf) : buf };
           } catch (e) {
             if (e.name === 'AbortError') throw e;
             return { data: new ArrayBuffer(0) };
@@ -125,13 +147,14 @@
       glyphs = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
     }
     const [W, S, E, N] = geo.extent;
-    const style = root.TWIN.style.build({ tiles, glyphs, extent: geo.extent, attribution: geo.attribution });
+    const style = root.TWIN.style.build({ tiles, glyphs, extent: geo.extent, attribution: geo.attribution, sites: geo.sites });
     const map = new gl.Map({
       container, style, ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75,
       maxBounds: [[W - 0.07, S - 0.06], [E + 0.07, N + 0.06]], fadeDuration: 120, dragRotate: true, pitchWithRotate: true,
     });
     await new Promise((res) => map.once('load', res));
-    return { gl, map, renderer: `MapLibre GL JS ${gl.getVersion ? gl.getVersion() : ''} · ${local ? 'offline OSM tiles' : 'OpenFreeMap'}`, labelFont: ['Noto Sans Bold'] };
+    root.TWIN.style.attach(map);
+    return { gl, map, mode: 'maplibre', slot: false, onTile: local ? onTile : null, renderer: `MapLibre GL JS ${gl.getVersion ? gl.getVersion() : ''} · ${local ? 'offline OSM tiles' : 'OpenFreeMap'}`, labelFont: ['Noto Sans Bold'] };
   }
 
   async function create(container, geo, cfg = {}) {
@@ -148,7 +171,8 @@
     function setPadding(p) { padding = { ...padding, ...p }; map.easeTo({ padding, duration: 350 }); }
 
     function flyToFacility(f, opts = {}) {
-      const zoom = { hospital: 15.6, power: 15.8, traffic: 15.9, drainage: 15.9, weather: 14.8 }[f.type] || 15.8;
+      // Close enough for the facility's hero model to read (see heroes.js).
+      const zoom = (f.subtype === 'EMS station' ? 17.5 : f.subtype === 'Pumping station' ? 17.9 : { hospital: 16.5, power: 17.3, traffic: 17.7, drainage: 15.9, weather: 18.1 }[f.type]) || 17;
       map.flyTo({ center: f.lngLat, zoom: opts.zoom || zoom, pitch: 62, bearing: map.getBearing() + (opts.turn || 0), duration: opts.duration || 1200, curve: 1.42, padding, essential: true });
     }
     function overview(opts = {}) {
@@ -166,9 +190,27 @@
     const interactListeners = [];
     for (const ev of ['dragstart', 'wheel', 'touchstart', 'pitchstart']) map.on(ev, (e) => { if (e.originalEvent) interactListeners.forEach((cb) => cb()); });
 
+    // Daylight follows the simulation clock: Mapbox switches its Standard light preset,
+    // MapLibre gets a computed sun for its light, sky and ground shadows; the hero-model
+    // layer subscribes for its own lighting.
+    const daylightListeners = [];
+    let daylight = null, preset = M.lightPreset || null;
+    function setSimTime(date) {
+      const sun = root.TWIN.core.sunPosition(date, geo.center[1], geo.center[0]);
+      const phase = root.TWIN.core.dayPhase(sun);
+      if (daylight && Math.abs(daylight.sun.elevation - sun.elevation) < 0.05 && Math.abs(daylight.sun.azimuth - sun.azimuth) < 0.05) return;
+      daylight = { sun, phase, date };
+      if (M.mode === 'mapbox') {
+        if (phase !== preset) { preset = phase; try { map.setConfigProperty('basemap', 'lightPreset', phase); } catch (e) { /* older style */ } }
+      } else root.TWIN.style.applyDaylight(map, sun, phase);
+      for (const cb of daylightListeners) cb(daylight);
+    }
+
     return {
-      ...M, OVERVIEW, setPadding, flyToFacility, overview, orbit,
+      ...M, OVERVIEW, base: baseURL(cfg), setPadding, flyToFacility, overview, orbit, setSimTime,
       onUserInteract: (cb) => interactListeners.push(cb),
+      onDaylight: (cb) => { daylightListeners.push(cb); if (daylight) cb(daylight); },
+      get daylight() { return daylight; },
       get padding() { return padding; },
     };
   }
