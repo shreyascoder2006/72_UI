@@ -44,7 +44,11 @@
         return r && r.result ? { text: '−' + Math.round(r.result.reduction * 100) + '%' } : null;
       },
     },
-    { path: '/warnings', icon: 'warnings', label: 'Warnings', group: 'Operations', phase: 4, desc: 'Situation reports, CAP alerts and public SMS' },
+    {
+      path: '/warnings', icon: 'warnings', label: 'Warnings', group: 'Operations', live: true,
+      desc: 'Situation reports, CAP alerts and public SMS',
+      chip: (L) => { const n = L.an.crises(L.k).list.length; return n ? { text: String(n) } : null; },
+    },
     { path: '/redteam', icon: 'redteam', label: 'Red team', group: 'Assurance', phase: 5, desc: 'Attack the twin’s own inputs' },
     { path: '/method', icon: 'method', label: 'Method', group: 'Assurance', phase: 9, desc: 'How the forecast is made, and how it is scored' },
     { path: '/area', icon: 'area', label: 'My area', group: 'Public', phase: 7, desc: 'The same forecast, in plain language' },

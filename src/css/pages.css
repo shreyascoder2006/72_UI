@@ -258,3 +258,40 @@ i.haz, .sw.haz { background: var(--water); }
   .pl-acts { grid-template-columns: 1fr; }
   .pl-bar { flex-direction: column; align-items: stretch; }
 }
+
+/* ── Warnings (#/warnings) ──────────────────────────────────────────────── */
+.warn-exercise {
+  margin: 14px 0 0; padding: 9px 12px; border: 1px dashed var(--watch); border-radius: var(--radius);
+  color: var(--text-2); font-size: var(--fs-md); background: var(--watch-dim);
+}
+.warn-exercise b { color: var(--watch); font-weight: 600; letter-spacing: 0.1em; }
+
+.wn-crisis { margin-top: 14px; padding: 16px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
+.wn-crisis-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.wn-crisis-head h3 { margin: 0 0 4px; font: 600 var(--fs-xl) / 1.2 var(--font-cond); }
+.wn-crisis-head h3 a { color: var(--accent); text-decoration: none; }
+.wn-crisis-head h3 a:hover { text-decoration: underline; }
+.wn-grade { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; }
+
+.wn-phones { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 14px; }
+.wn-phone { padding: 11px 13px; background: var(--panel-raised); border: 1px solid var(--line-strong); border-radius: 10px; }
+.wn-phone-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wn-seg { font: 500 var(--fs-xs) / 1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
+.wn-seg.tight { color: var(--high); }
+.wn-sms { margin: 9px 0 0; font-size: var(--fs-md); line-height: 1.5; color: var(--text); }
+
+.wn-cap { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.wn-cap summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-md); }
+.wn-cap summary:hover { color: var(--text); }
+.wn-doc { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.wn-doc-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; background: var(--well); border-bottom: 1px solid var(--line);
+}
+.wn-cap .wn-doc-bar { margin-top: 10px; border: 1px solid var(--line); border-bottom: none; }
+.wn-pre {
+  margin: 0; padding: 14px; max-height: 460px; overflow: auto;
+  font: 400 var(--fs-sm) / 1.55 var(--font-mono); color: var(--text-2); white-space: pre; tab-size: 2;
+  background: var(--panel-solid);
+}
+.wn-cap .wn-pre { border: 1px solid var(--line); border-top: none; }
