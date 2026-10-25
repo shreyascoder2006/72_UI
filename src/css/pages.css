@@ -216,3 +216,45 @@ i.haz, .sw.haz { background: var(--water); }
   .ov-chart, .hist { overflow-x: auto; overscroll-behavior-x: contain; }
   .ov-chart svg, .gantt { min-width: 760px; }
 }
+
+/* ── Response (#/plan) ──────────────────────────────────────────────────── */
+.pl-bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pl-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.pl-acts { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; margin-top: 12px; }
+.pl-act {
+  display: flex; gap: 11px; padding: 12px 14px; cursor: pointer;
+  background: var(--well); border: 1px solid var(--line); border-radius: var(--radius);
+  transition: border-color 0.15s, background 0.15s;
+}
+.pl-act:hover { border-color: var(--line-strong); }
+.pl-act.on { border-color: var(--accent-line); background: var(--accent-dim); }
+.pl-act input { flex: none; margin-top: 2px; accent-color: var(--accent); }
+.pl-act-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pl-act-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.pl-act-head b { font-weight: 600; font-size: var(--fs-lg); }
+.pl-cost { flex: none; font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.pl-act-detail { color: var(--text-2); font-size: var(--fs-md); line-height: 1.45; }
+.pl-act-side { color: var(--high); font-size: var(--fs-sm); }
+.pl-act-gain { color: var(--text-3); font-size: var(--fs-sm); font-family: var(--font-mono); }
+
+.pl-verdict { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.pl-ledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.pl-cellbox { padding: 12px 14px; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius); }
+.pl-cellbox .k { font-size: var(--fs-sm); color: var(--text-3); }
+.pl-cellbox .v { margin-top: 6px; font: 600 24px / 1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.pl-cellbox .d { margin-top: 5px; font-size: var(--fs-sm); color: var(--text-3); }
+.pl-cellbox .d.good { color: var(--ok); }
+.pl-cellbox .d.bad { color: var(--crit); }
+.pl-side-list { margin: 14px 0 0; color: var(--text-2); font-size: var(--fs-md); line-height: 1.55; }
+.pl-side-list b { color: var(--text); font-weight: 600; }
+
+.pl-deadline-line { margin: 0 0 10px; font-size: var(--fs-lg); line-height: 1.55; color: var(--text-2); }
+.pl-deadline-line b { color: var(--text); font-weight: 600; }
+.pl-chart { width: 100%; height: auto; }
+.pl-fill { fill: var(--accent); fill-opacity: 0.1; stroke: none; }
+
+@media (max-width: 720px) {
+  .pl-acts { grid-template-columns: 1fr; }
+  .pl-bar { flex-direction: column; align-items: stretch; }
+}

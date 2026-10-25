@@ -50,13 +50,20 @@
     const key = k + '|' + budget;
     if (!cache.has(key)) {
       const p = planner(e);
-      cache.set(key, p.recommendAsync(k, budget).then((ids) => ({ k, budget, ids, result: ids.length ? p.evaluate(k, ids) : null })));
+      cache.set(key, p.recommendAsync(k, budget).then((ids) => {
+        const out = { k, budget, ids, result: ids.length ? p.evaluate(k, ids) : null };
+        // A resolved copy, so a caller that cannot wait (the sidebar chip) can read it.
+        (e.recDone || (e.recDone = new Map())).set(key, out);
+        return out;
+      }));
     }
     return cache.get(key);
   }
 
+  const recommendedNow = (e, k, budget = 5) => (e.recDone && e.recDone.get(k + '|' + budget)) || null;
+
   T.services = {
-    engine, planner, recommended, population, scenariosFor, runs,
+    engine, planner, recommended, recommendedNow, population, scenariosFor, runs,
     cities: () => Object.values(root.TWIN_GEOS || {}),
     geo: geoOf,
     cached: (city, scenario) => engines.has(city + '|' + scenario),

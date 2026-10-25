@@ -36,7 +36,14 @@
       chip: (L) => (T.store.ctx.a ? { text: T.store.ctx.a } : null),
     },
     { path: '/graph', icon: 'dependencies', label: 'Dependencies', group: 'Operations', phase: 6, desc: 'The learned dependency graph' },
-    { path: '/plan', icon: 'response', label: 'Response', group: 'Operations', phase: 3, desc: 'Interventions, deadlines and the ghost city' },
+    {
+      path: '/plan', icon: 'response', label: 'Response', group: 'Operations', live: true,
+      desc: 'What to do with the crews available, and by when',
+      chip: (L) => {
+        const r = T.services.recommendedNow(L.e, L.k);
+        return r && r.result ? { text: '−' + Math.round(r.result.reduction * 100) + '%' } : null;
+      },
+    },
     { path: '/warnings', icon: 'warnings', label: 'Warnings', group: 'Operations', phase: 4, desc: 'Situation reports, CAP alerts and public SMS' },
     { path: '/redteam', icon: 'redteam', label: 'Red team', group: 'Assurance', phase: 5, desc: 'Attack the twin’s own inputs' },
     { path: '/method', icon: 'method', label: 'Method', group: 'Assurance', phase: 9, desc: 'How the forecast is made, and how it is scored' },
