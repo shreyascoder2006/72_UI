@@ -44,5 +44,18 @@
     report: s('<path d="M2.5 3h11v7.5H7l-3 2.5v-2.5H2.5z"/>', 'width="13" height="13"'),
     forecast: s('<path d="M2 12.5 6 8l2.6 2.6L14 4.6"/><path d="M10.6 4.6H14V8"/>', 'width="13" height="13"'),
   };
-  root.TWIN.icons = { FAC, UI, forFacility };
+  // Navigation: one per feature in the left sidebar (site/nav.js), drawn at 18 px.
+  const n = (d) => s(d, 'width="18" height="18"');
+  const NAV = {
+    situation: n('<path d="M8 1.8 14.2 5v6L8 14.2 1.8 11V5z"/><path d="M8 5.4v3.2M8 10.9v.1"/>'),
+    crises: n('<path d="M8 2.4 14.4 13.6H1.6z"/><path d="M8 6.6v3M8 11.6v.1"/>'),
+    twin: n('<path d="M8 1.8 14.2 5.4 8 9 1.8 5.4z"/><path d="M1.8 10.6 8 14.2l6.2-3.6M1.8 8 8 11.6 14.2 8"/>'),
+    dependencies: n('<circle cx="3.6" cy="4.2" r="1.7"/><circle cx="12.4" cy="7.4" r="1.7"/><circle cx="5.4" cy="12.4" r="1.7"/><path d="m5.2 4.8 5.6 2M11.4 8.9l-4.7 2.6M4.2 5.8l.8 5"/>'),
+    response: n('<path d="M8 1.9 13.4 4v4.3c0 2.6-2.2 4.8-5.4 5.8-3.2-1-5.4-3.2-5.4-5.8V4z"/><path d="m5.7 7.9 1.7 1.7 3-3.4"/>'),
+    warnings: n('<path d="M4.3 11.6V7.9a3.7 3.7 0 0 1 7.4 0v3.7"/><path d="M2.9 11.6h10.2"/><path d="M6.4 13.4a1.6 1.6 0 0 0 3.2 0"/><path d="M8 1.6v1.4"/>'),
+    redteam: n('<path d="M8 1.8 14.2 5v4.1c0 .7-.3 1.3-.8 1.7L8 14.2l-5.4-3.4a2 2 0 0 1-.8-1.7V5z"/><path d="m6.2 6.2 3.6 3.6M9.8 6.2 6.2 9.8"/>'),
+    method: n('<path d="M6.4 1.9v3.6L2.8 12a1.6 1.6 0 0 0 1.4 2.4h7.6A1.6 1.6 0 0 0 13.2 12L9.6 5.5V1.9z"/><path d="M5.6 1.9h4.8M4.6 9.4h6.8"/>'),
+    area: n('<path d="M8 14.2s4.6-3.9 4.6-7.3a4.6 4.6 0 0 0-9.2 0c0 3.4 4.6 7.3 4.6 7.3z"/><circle cx="8" cy="6.7" r="1.7"/>'),
+  };
+  root.TWIN.icons = { FAC, UI, NAV, forFacility };
 })(typeof window !== 'undefined' ? window : globalThis);

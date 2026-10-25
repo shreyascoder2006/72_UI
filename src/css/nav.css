@@ -1,0 +1,110 @@
+/* The permanent left sidebar (site/nav.js). It sits outside both the twin (.app) and
+   the other pages (.site), which are inset by --nav-w, so it stays put while the view
+   behind it changes. Collapsed it keeps the icons; on a phone it becomes an overlay. */
+.nav {
+  position: fixed; top: 0; left: 0; bottom: 0; width: var(--nav-w); z-index: 50;
+  display: flex; flex-direction: column; background: var(--panel-solid);
+  border-right: 1px solid var(--line);
+  padding-left: env(safe-area-inset-left, 0px);
+  transition: width 0.2s var(--ease);
+}
+
+/* Brand: the same height as the top bars either side of it, so the rules line up. */
+.nav-brand {
+  flex: none; height: var(--top-h); display: flex; align-items: center; gap: 10px;
+  padding-inline: 16px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none;
+}
+.nav-brand .brand-mark { width: 24px; height: 24px; flex: none; }
+.nav-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.nav-brand-text b {
+  font: 500 13px / 1 var(--font-ui); letter-spacing: 0.26em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav-brand-text span {
+  margin-top: 3px; font: 500 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--text-3); white-space: nowrap;
+}
+
+.nav-items { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 0 18px; }
+.nav-group + .nav-group { margin-top: 14px; }
+.nav-group-title {
+  padding: 0 16px 6px; font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--text-4);
+}
+
+.nav-item {
+  position: relative; display: flex; align-items: center; gap: 11px;
+  height: 36px; padding-inline: 16px; color: var(--text-2); text-decoration: none;
+  font: 500 var(--fs-lg) / 1 var(--font-ui);
+  transition: color 0.15s, background 0.15s;
+}
+.nav-item:hover { color: var(--text); background: rgba(255, 255, 255, 0.035); }
+.nav-item[aria-current="page"] { color: var(--text); background: var(--accent-dim); }
+/* The current feature is marked on the edge, where the eye returns between pages. */
+.nav-item[aria-current="page"]::before {
+  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; background: var(--accent);
+}
+.nav-ico { flex: none; display: inline-flex; width: 18px; height: 18px; color: var(--text-3); }
+.nav-item:hover .nav-ico, .nav-item[aria-current="page"] .nav-ico { color: var(--accent); }
+.nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Live state from the engine: a count, or the city's state in its risk colour. */
+.nav-chip {
+  flex: none; font: 600 var(--fs-xs) / 1 var(--font-mono); letter-spacing: 0.06em;
+  color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.nav-chip:empty { display: none; }
+.nav-chip[class*="r-"] { padding: 3px 6px; border-radius: 3px; color: var(--rc); background: var(--rd); }
+
+.nav-foot {
+  flex: none; display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+}
+.nav-collapse {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--radius); color: var(--text-3);
+  transition: color 0.15s, background 0.15s;
+}
+.nav-collapse:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.nav-collapse svg { transform: rotate(90deg); }
+
+/* ── Collapsed: icons only ─────────────────────────────────────────────── */
+body.nav-tight .nav-brand-text,
+body.nav-tight .nav-label,
+body.nav-tight .nav-group-title { display: none; }
+body.nav-tight .nav-brand { justify-content: center; padding-inline: 0; }
+body.nav-tight .nav-item { justify-content: center; padding-inline: 0; gap: 0; }
+body.nav-tight .nav-group + .nav-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+body.nav-tight .nav-collapse svg { transform: rotate(-90deg); }
+/* The chip becomes a dot on the icon: the count is gone, the fact of it is not. */
+body.nav-tight .nav-chip {
+  position: absolute; top: 6px; right: 10px; width: 6px; height: 6px; padding: 0;
+  border-radius: 50%; overflow: hidden; text-indent: -20px;
+  background: var(--rc, var(--text-3));
+}
+
+/* ── Phone: an overlay drawer ──────────────────────────────────────────── */
+/* The button that opens it lives in each view's own top bar. */
+.nav-btn { display: none; }
+.nav-scrim { display: none; }
+@media (max-width: 960px) {
+  .nav { width: min(82vw, 290px); transform: translateX(-102%); transition: transform 0.3s var(--ease); box-shadow: var(--shadow); }
+  body.nav-open .nav { transform: none; }
+  body.nav-tight .nav-brand-text,
+  body.nav-tight .nav-label,
+  body.nav-tight .nav-group-title { display: revert; }
+  body.nav-tight .nav-item { justify-content: flex-start; padding-inline: 16px; gap: 11px; }
+  body.nav-tight .nav-chip { position: static; width: auto; height: auto; border-radius: 3px; text-indent: 0; background: none; }
+  .nav-collapse { display: none; }
+  .nav-btn { display: grid; }
+  .nav-scrim {
+    display: block; position: fixed; inset: 0; z-index: 45; background: rgba(5, 7, 9, 0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s var(--ease);
+  }
+  body.nav-open .nav-scrim { opacity: 1; pointer-events: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav, .nav-scrim { transition: none; }
+}

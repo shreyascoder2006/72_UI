@@ -46,11 +46,13 @@
     // A city switch reloads the page (map bounds, tiles and meshes are per city).
     const g = (app.geo = T.services.cities().find((c) => c.id === ctx.city) || T.services.geo(DEFAULT_CITY));
     C.setTZ(g.tz, g.tzLabel);
-    $('loadingTitle').textContent = $('brandTitle').textContent = `${g.city} Digital Twin`;
-    $('brandSub').textContent = `Cascade Intelligence · ${g.region}`;
+    $('loadingTitle').textContent = `${g.city} Digital Twin`;
+    $('brandTitle').textContent = g.city;
+    $('brandSub').textContent = g.region;
     $('map').setAttribute('aria-label', `3D map of ${g.city}`);
-    T.site.tabs($('twinTabs'), '/twin');
-    T.site.tabs($('drawerTabs'), '/twin');
+    T.nav.render('/twin', null);
+    $('navBtn').innerHTML = I.menu;
+    $('navBtn').addEventListener('click', () => T.nav.toggle());
     const s0 = app.state;
     s0.scenario = ctx.s && T.services.runs(g.id, ctx.s) ? ctx.s : T.services.scenariosFor(g.id)[0].id;
     s0.nowT = s0.t = liveNowOf(s0.scenario);
@@ -179,6 +181,7 @@
     app.layers.update(v.R, { diurnal: e.diurnal(v.t), flows: flows(v), arcs: app.state.layers.arcs ? arcs(v) : null });
     if (app.state.layers.weather) drawRadar(v);
     // Panels
+    T.nav.render('/twin', { e, an: e.analytics, k: v.kInfo, scen: e.scen });
     app.sidebar.updateList(v.R, v.trust, app.state.selected);
     const kAlert = v.forecastView ? v.kNow : v.k;
     app.sidebar.updateAlerts(e.alerts.filter((a) => a.k <= kAlert), Math.min(v.t, v.tNow));
@@ -565,7 +568,7 @@
     // Narrow-screen drawer
     $('drawerBtn').innerHTML = I.menu;
     $('drawerBtn').addEventListener('click', () => $('app').classList.toggle('drawer-open'));
-    document.querySelector('.left').addEventListener('click', (e) => { if (e.target.closest('.row, .site-tabs a')) $('app').classList.remove('drawer-open'); });
+    document.querySelector('.left').addEventListener('click', (e) => { if (e.target.closest('.row')) $('app').classList.remove('drawer-open'); });
     // Keyboard
     window.addEventListener('keydown', (e) => {
       if (e.target.matches('input, select, textarea')) return;

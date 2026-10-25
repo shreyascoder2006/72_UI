@@ -1,22 +1,6 @@
 /* Pages other than the twin (overview, crises): same tokens and control-room palette;
    reading pages with sentences first and few, labelled figures. */
 
-/* ── Navigation tabs (site header and the twin's top bar) ───────────────── */
-.site-tabs { display: flex; align-items: stretch; gap: 2px; height: 100%; flex: none; }
-.site-tabs a {
-  display: inline-flex; align-items: center; padding: 0 11px; color: var(--text-3); text-decoration: none; white-space: nowrap;
-  font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase;
-  border-bottom: 2px solid transparent; border-top: 2px solid transparent;
-}
-.site-tabs a:hover { color: var(--text); }
-.site-tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
-/* In the twin's top bar on wide screens; on narrower ones at the top of the asset panel
-   (docked, or the drawer on phones), so the city name keeps its room. */
-.twin-tabs { height: var(--top-h); margin-left: 14px; }
-.drawer-tabs { display: none; height: 38px; margin: -4px 0 10px; border-bottom: 1px solid var(--line); }
-@media (min-width: 1521px) { .topbar { grid-template-columns: minmax(max-content, 1fr) auto minmax(0, 1fr); } }
-@media (max-width: 1520px) { .twin-tabs { display: none; } .drawer-tabs { display: flex; } }
-
 /* Crisis chip in the twin's breadcrumb */
 .crumb-crisis { display: inline-flex; align-items: center; gap: 2px; height: 24px; margin-left: 4px; padding: 0 2px 0 9px; border-radius: 12px; border: 1px dashed var(--high); color: var(--high); }
 .crumb-crisis a { color: inherit; text-decoration: none; font-size: var(--fs-xs); }
@@ -26,7 +10,7 @@
 .crumb-crisis svg { width: 11px; height: 11px; }
 
 /* ── Shell ──────────────────────────────────────────────────────────────── */
-.site { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--bg); }
+.site { position: fixed; inset: 0 0 0 var(--nav-w); z-index: 40; display: flex; flex-direction: column; background: var(--bg); }
 .site-top {
   flex: none; height: var(--top-h); display: flex; align-items: center; gap: 18px;
   padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
@@ -43,7 +27,7 @@
 .page { flex: 1; min-height: 0; outline: none; }
 
 .site-toast {
-  position: fixed; left: 50%; top: calc(var(--top-h) + 12px); transform: translateX(-50%); z-index: 60;
+  position: fixed; left: calc(50% + var(--nav-w) / 2); top: calc(var(--top-h) + 12px); transform: translateX(-50%); z-index: 60;
   display: flex; gap: 10px; align-items: center; max-width: calc(100% - 24px); padding: 9px 14px;
   border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: var(--fs-md); box-shadow: var(--shadow);
 }
@@ -211,7 +195,6 @@ i.haz, .sw.haz { background: var(--water); }
 @media (max-width: 960px) {
   .site-top { height: auto; flex-wrap: wrap; row-gap: 0; padding-top: 4px; }
   .site-top .brand-sub { display: none; }
-  .site-top .site-tabs { height: 44px; }
   .site-ctx { order: 3; width: 100%; margin: 0; padding: 8px 0 10px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); }
   .site-ctx::-webkit-scrollbar { display: none; }
   .pg-grid.two { grid-template-columns: minmax(0, 1fr); }
@@ -224,7 +207,6 @@ i.haz, .sw.haz { background: var(--water); }
 }
 @media (max-width: 560px) {
   .site-top .brand-text { display: none; }
-  .site-tabs a { padding: 0 8px; letter-spacing: 0.1em; }
   .site-top { gap: 8px; }
   .pg-head h1 { font-size: 25px; }
   .ov-lede { font-size: 15px; }

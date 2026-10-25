@@ -1,5 +1,5 @@
 /* ── Frame ─────────────────────────────────────────────────────────────── */
-.app { position: fixed; inset: 0; }
+.app { position: fixed; inset: 0 0 0 var(--nav-w); }
 /* The twin stays built while another page is shown (site/router.js). */
 .app.view-off { visibility: hidden; pointer-events: none; }
 #map { position: absolute; inset: var(--top-h) 0 0 0; background: var(--bg); }
@@ -84,7 +84,9 @@
 .map-ui > * { pointer-events: auto; }
 
 /* ── Narrow screens: sidebars become drawers ───────────────────────────── */
-.drawer-btn { display: none; }
+.topbar .drawer-btn { display: none; }
+/* Collapsed sidebar: icons only, so the views either side get the width back. */
+body.nav-tight { --nav-w: 58px; }
 @media (max-width: 1180px) {
   :root { --left-w: 290px; --right-w: 320px; }
   .sys-text, .clock-scn { display: none; }
@@ -92,7 +94,8 @@
   .sim-short { display: inline; }
 }
 @media (max-width: 960px) {
-  :root { --bottom-h: 132px; }
+  /* The sidebar becomes an overlay, so the views run full width again. */
+  :root, body.nav-tight { --nav-w: 0px; --bottom-h: 132px; }
   .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
   .brand-sub, .clock-d, .city-chip .pill-label { display: none; }
   .brand-title { letter-spacing: 0.2em; font-size: 13px; }
@@ -101,7 +104,7 @@
   .bottom, .app.inspecting .bottom { left: 0; right: 0; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .map-ui, .app.inspecting .map-ui { left: 0; right: 0; }
   .right { width: 100%; z-index: 25; }
-  .drawer-btn { display: inline-flex; }
+  .topbar .drawer-btn { display: grid; }
 }
 @media (max-width: 560px) {
   .sys, .clock-tag { display: none; }

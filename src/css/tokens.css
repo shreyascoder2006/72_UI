@@ -53,6 +53,7 @@
 
   /* Geometry */
   --top-h: 52px;
+  --nav-w: 232px;   /* the permanent left sidebar (site/nav.js) */
   --left-w: 320px;
   --right-w: 344px;
   --bottom-h: 104px;

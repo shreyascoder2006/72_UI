@@ -29,9 +29,33 @@ const { chromium } = require('playwright');
   // 1. The bare page opens the overview of the default city and writes the context.
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   await pageReady(); await settle();
-  let pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, tab: (document.querySelector('#siteTabs [aria-current]') || {}).textContent, plan: !!document.querySelector('#ovPlanBody .plan-list'), chart: !!document.querySelector('#ovChart svg'), title: document.title }));
-  check('bare URL → overview of the default city, Nagpur', pg.hash === '#/?city=nagpur&s=monsoon2023' && /Nagpur/.test(pg.h1) && pg.tab === 'Overview' && /^Overview/.test(pg.title), pg);
+  let pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, tab: ((document.querySelector('#nav .nav-item[aria-current]') || {}).querySelector ? document.querySelector('#nav .nav-item[aria-current] .nav-label').textContent : null), plan: !!document.querySelector('#ovPlanBody .plan-list'), chart: !!document.querySelector('#ovChart svg'), title: document.title }));
+  check('bare URL → overview of the default city, Nagpur', pg.hash === '#/?city=nagpur&s=monsoon2023' && /Nagpur/.test(pg.h1) && pg.tab === 'Situation' && /^Overview/.test(pg.title), pg);
   check('overview has the predicted course and a recommended plan', pg.chart && pg.plan, pg);
+  // The sidebar lists every built feature, marks the current one, and advertises none
+  // that cannot be opened.
+  const nav = await page.evaluate(() => ({
+    items: [...document.querySelectorAll('#nav .nav-item')].map((a) => a.dataset.path),
+    labels: [...document.querySelectorAll('#nav .nav-item .nav-label')].map((a) => a.textContent),
+    planned: TWIN.nav.planned().map((f) => f.path),
+    chips: [...document.querySelectorAll('#nav .nav-item')].map((a) => a.querySelector('.nav-chip').textContent),
+    groups: [...document.querySelectorAll('#nav .nav-group-title')].map((g) => g.textContent),
+  }));
+  check('sidebar lists the built features only, with live chips',
+    nav.items.join() === '/,/crises,/twin' && nav.labels.join() === 'Situation,Crises,City twin'
+    && !nav.planned.some((p) => nav.items.includes(p)) && nav.groups.join() === 'Operations'
+    && /NORMAL|WATCH|HIGH|CRITICAL/.test(nav.chips[0]), nav);
+  // Collapsing leaves the icons and survives a reload; the rail is narrower.
+  await click('#navCollapse');
+  await page.waitForTimeout(350); // the rail animates to its width
+  const tight = await page.evaluate(() => ({
+    on: document.body.classList.contains('nav-tight'),
+    w: document.getElementById('nav').getBoundingClientRect().width,
+    label: getComputedStyle(document.querySelector('#nav .nav-label')).display,
+  }));
+  await click('#navCollapse');
+  check('sidebar collapses to an icon rail', tight.on && tight.w < 70 && tight.label === 'none', tight);
+
   // The header's city selector switches the page in place (the rest runs on Raleigh).
   await page.evaluate(() => { const s = document.getElementById('pgCity'); s.value = 'raleigh'; s.dispatchEvent(new Event('change')); });
   await until(() => /city=raleigh/.test(location.hash) && /Raleigh/.test((document.querySelector('#page h1') || {}).textContent || ''));
@@ -40,7 +64,7 @@ const { chromium } = require('playwright');
   check('city selector → Raleigh overview, no reload', pg.hash === '#/?city=raleigh&s=tropical' && /Raleigh/.test(pg.h1) && pg.plan, pg);
 
   // 2. Tabs and links: crisis registry, a crisis, then the twin framed on it.
-  await click('#siteTabs a[data-nav="/crises"]');
+  await click('#nav a[data-nav="/crises"]');
   await pageReady();
   pg = await page.evaluate(() => ({ hash: location.hash, rows: document.querySelectorAll('.crisis-row').length, first: (document.querySelector('.crisis-row .cr-id a') || {}).textContent, gantt: !!document.querySelector('#crHist svg') }));
   check('Crises tab → registry with rows and history', /^#\/crises\?city=raleigh&s=tropical$/.test(pg.hash) && pg.rows > 0 && pg.gantt, pg);
@@ -87,11 +111,11 @@ const { chromium } = require('playwright');
   check('forward → selection restored', st.sel === 'HSP-WMR', st);
 
   // 5. Leaving the twin pauses it; the crisis page reads the twin's time; coming back resumes.
-  await click('#twinTabs a[data-nav="/crises"]');
+  await click('#nav a[data-nav="/crises"]');
   await pageReady();
   pg = await page.evaluate(() => ({ hash: location.hash, paused: TWIN.app.paused, asof: document.querySelector('.pg-asof').textContent }));
   check('twin → Crises tab keeps the context and pauses the twin', /^#\/crises\?city=raleigh&s=tropical&t=40&a=HSP-WMR$/.test(pg.hash) && pg.paused && /T\+34\.5h/.test(pg.asof), pg);
-  await click('#siteTabs a[data-nav="/twin"]');
+  await click('#nav a[data-nav="/twin"]');
   await ready(); await settle();
   st = await state();
   check('back on the twin: resumed with the same selection and time', !(await page.evaluate(() => TWIN.app.paused)) && st.sel === 'HSP-WMR' && st.t === 40, st);
