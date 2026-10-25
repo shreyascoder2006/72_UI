@@ -14,6 +14,9 @@ const { chromium } = require('playwright');
   const until = async (fn, arg, ms = 120000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await page.evaluate(fn, arg)) return; await page.waitForTimeout(200); } throw new Error('timed out: ' + fn); };
   const ready = () => until(() => !document.getElementById('loading') && window.TWIN && TWIN.app && TWIN.app.engine);
   const settle = () => page.waitForTimeout(700); // URL writes are throttled to 400 ms
+  // Wait for the address bar to match; a busy main thread (e.g. a hero model loading) can
+  // delay the throttled write well past the throttle interval.
+  const hashLike = (re) => until((src) => new RegExp(src).test(location.hash), re.source, 8000).catch(() => {});
   const state = () => page.evaluate(() => { const s = TWIN.app.state; return { hash: location.hash, scenario: s.scenario, mode: s.mode, t: s.t, nowT: s.nowT, sel: s.selected != null ? TWIN_GEO.facilities[s.selected].id : null }; });
   let fails = 0;
   const check = (label, ok, info) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${ok ? '' : '  ' + JSON.stringify(info)}`); if (!ok) fails++; };
@@ -32,7 +35,7 @@ const { chromium } = require('playwright');
 
   // 2. Selecting a facility pushes it into the URL; Escape clears it.
   await page.evaluate(() => TWIN.app.select(TWIN_GEO.facilities.findIndex((f) => f.id === 'HSP-WMR'), { fly: false }));
-  await settle();
+  await hashLike(/[?&]a=HSP-WMR/);
   st = await state();
   check('selection written to URL', /[?&]a=HSP-WMR/.test(st.hash), st);
   const tag = await page.evaluate(() => document.getElementById('feedTag').textContent);
@@ -40,7 +43,7 @@ const { chromium } = require('playwright');
 
   // 3. Scrubbing writes the time; back returns to the previous selection state.
   await page.evaluate(() => { TWIN.app.scrub(40); TWIN.app.scrubEnd(); });
-  await settle();
+  await hashLike(/[?&]t=40/);
   st = await state();
   check('scrub written to URL (replace)', /[?&]t=40/.test(st.hash), st);
   await page.goBack(); await settle();

@@ -165,6 +165,7 @@ single-page builds (`modelBundles`).
 | **Multi-horizon forecasting** | 200-member ensemble. Each facility gets P(critical) and a fan chart at +1/6/12/24/48 h, plus time-to-critical with p10–p90. Forecasts are perturbation forecasts anchored to the current analysis. |
 | **Dependency discovery** | No structure is given. 71 candidate links (7 deliberately spurious) are learned online by sparse Bayesian regression (ARD) on the sensor streams, then confirmed, pruned or left as awaiting evidence. By T+72 h on the tropical storm: 32 confirmed, 12 pruned. A separate raw-stream screen (lagged correlation, weather partialled out by distributed-lag regression) checks the structure at system level. |
 | **Cascade prediction** | Lagged propagation with feedback loops: hospital → EMS → hospital, diversion between hospitals, load transfer between substations. The timeline, cascade strip and graph show the stage-by-stage sequence, observed and forecast, numbered in propagation order. |
+| **Concurrent crises** | `analytics.js` (ported from vizsh/72_hours_CASCADE with permission) groups stressed facilities into crises over the learned dependency graph: each gets an ID, hazard family, lifecycle stage (precursor, emerging, escalating, active, recovering), member systems and districts, the next facility forecast to go critical, and coupling or contention with other crises. **Cascade-R** compares the stress arriving through dependencies with the stress the hazard applies directly; above 1 the cascade is feeding itself. Both are computed now and as forecasts. People exposed is *not modeled* until a population layer is added. These products are not shown in the interface yet; the crisis pages come next. |
 | **Online learning under drift** | A localized particle filter with forgetting (about a 23 h memory) and adaptive tempering keeps the effective sample size at or above 12%. Recursive estimators update every 30 minutes without retraining. "Trigger cascade" replays the streams from T+0 so you can watch this happen. |
 | **Uncertainty and adversity** | Sensor trust comes from spread-normalized residuals and flatline detection. Suspect channels are quarantined, meaning their past evidence is forgotten quickly. In the tropical run the frozen gauge, offline camera and biased rain gauge are flagged with no false flags. Planted false citizen reports score 12–16% corroboration; genuine ones score 84–96%. |
 | **Causal explainability** | Every risk value decomposes into baseline, hazard and each upstream link (posterior weight ± sd, lag, mechanism, upstream sensor reading and trust). The strongest chain back to the hazard is shown, e.g. Rainfall → Pigeon House Branch → Capital Blvd → EMS Station 2 → WakeMed. |
@@ -190,10 +191,12 @@ evidence of real-world skill.
 index.html, config.js      page shell and runtime configuration
 src/css/                   tokens, layout, panels, map chrome
 src/js/core.js             risk vocabulary, seeded RNG, geo helpers
-src/js/engine/             scenarios, ensemble + assimilation + learning, interventions
+src/js/engine/             scenarios, ensemble + assimilation + learning, interventions,
+                           analytics (Cascade-R and the crisis registry)
 src/js/map/                basemap style, layers, hex markers, radar, renderer bootstrap
 src/js/ui/                 sidebar, inspector, timeline, drawers, sensor feed, app orchestrator
-src/js/site/               shared context in the URL (store.js) and the page router (router.js)
+src/js/site/               engine access for every page (services.js), shared context in the URL
+                           (store.js) and the page router (router.js)
 src/js/views/              pages; twin.js mounts the operations room at #/twin
 src/js/data/geodata.js     generated: facilities, routes, networks (from OSM)
 data/tiles, data/fonts     baked OpenMapTiles vector tiles and label glyphs
@@ -218,6 +221,7 @@ areas.
 ```bash
 node tools/test/engine_probe.js tropical          # engine timeline, learning, validation
 node tools/test/interventions_probe.js            # counterfactual planner
+node tools/test/analytics_probe.js                # Cascade-R and the crisis registry per scenario
 node tools/test/smoke.js http://localhost:8000/ out/   # headless browser run (Playwright)
 node tools/test/routes.js http://localhost:8000/       # deep links, back/forward, simulation labels
 node tools/test/heroes.js http://localhost:8000/ out/  # each hero model, plus dawn/noon/dusk/night

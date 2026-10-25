@@ -186,7 +186,8 @@
     let planner = null, kDecision = -1;
 
     function ensure() {
-      if (!planner || planner._e !== app.engine) { planner = root.TWIN.interventions.create(app.engine); planner._e = app.engine; singles = {}; result = null; }
+      const p = root.TWIN.services.planner(app.engine);
+      if (p !== planner) { planner = p; singles = {}; result = null; }
     }
     function render(force) {
       if (el.hidden) return;

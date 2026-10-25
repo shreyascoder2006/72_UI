@@ -521,15 +521,16 @@
     }
     function meanAt(k, i, w) { let mu = 0; for (let m = 0; m < M; m++) mu += w[m] * R(m, k, i); return mu; }
 
-    // Weighted mean of each member's exogenous forcing for facility i at step k.
-    function forcingEstimate(k, i) {
+    // Weighted mean of each member's exogenous forcing for facility i at step kAt, using
+    // the weights (evidence) available at step k. kAt > k is the forecast forcing.
+    function forcingEstimate(k, i, kAt = k) {
       const w = wAt(k, i);
       const base = F[i].p.base;
       let acc = 0, rainAcc = 0;
       for (let m = 0; m < M; m++) {
         if (w[m] < 1e-4) continue;
-        acc += w[m] * (forc[(m * K + k) * N + i] - base - members[m].baseOff[i]);
-        rainAcc += w[m] * rainAt(members[m], i, k * DT);
+        acc += w[m] * (forc[(m * K + kAt) * N + i] - base - members[m].baseOff[i]);
+        rainAcc += w[m] * rainAt(members[m], i, kAt * DT);
       }
       return { forcing: acc, rain: rainAcc };
     }
@@ -869,7 +870,7 @@
     return {
       geo, scen, F, E, N, M, K, DT, HOURS, idx, kinds, inEdges, outEdges,
       FAULTS, members, traj, truth, obs, now, nowSd, trust, prior, ESS,
-      kOf, stateAt, forecast, project, explain, diurnal: trafficDiurnal, thr, edgesAt, edgePosterior, inbound, cascade, discover, alerts,
+      kOf, stateAt, forecast, project, explain, forcingEstimate, diurnal: trafficDiurnal, thr, edgesAt, edgePosterior, inbound, cascade, discover, alerts,
       validation, cityAt, radarParams, rainField, simulate, drawParams, R, wAt, g,
       truthParams: truthP,
     };

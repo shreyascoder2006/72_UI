@@ -42,7 +42,7 @@
     const step = (s) => { $('loadingStep').textContent = s; return nextFrame(); };
     if (ctx.s && T.scenarios[ctx.s]) app.state.scenario = ctx.s;
     await step('Assimilating 72 h of simulated sensor streams · 200-member ensemble…');
-    app.engine = T.engine.create(app.geo, { scenario: app.state.scenario });
+    app.engine = T.services.engine(app.state.scenario);
     app.view = computeView();
 
     await step('Loading Raleigh city model · OpenStreetMap buildings and streets…');
@@ -428,9 +428,8 @@
     const ld = document.createElement('div');
     ld.className = 'loading'; ld.style.background = 'rgba(9,11,14,0.82)';
     ld.innerHTML = `<div class="loading-title">${esc(T.scenarios[id].label)}</div><div class="loading-bar"><i></i></div><div class="loading-step">Re-running the 200-member ensemble and replaying the simulated sensor streams…</div>`;
-    $('app').appendChild(ld);
-    await nextFrame(); await nextFrame();
-    app.engine = T.engine.create(app.geo, { scenario: id });
+    if (!T.services.cached(id)) { $('app').appendChild(ld); await nextFrame(); await nextFrame(); }
+    app.engine = T.services.engine(id);
     precomputePaths();
     app.graph.reset(); app.valid.reset(); app.timeline.invalidate();
     s.nowT = s.mode === 'live' ? LIVE_NOW : app.engine.HOURS;
