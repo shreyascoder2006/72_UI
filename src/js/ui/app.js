@@ -5,22 +5,25 @@
   const { stateOf, RISK_HEX, fmtT, clamp } = C;
   const I = T.icons.UI;
   const LIVE_NOW = 34.5;
+  // Each scenario has its own "now" (a reconstruction opens before its peak).
+  const liveNowOf = (id) => (T.scenarios[id] && T.scenarios[id].liveNow) || LIVE_NOW;
+  const DEFAULT_CITY = T.site.DEFAULT_CITY;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
   const app = {
-    geo: root.TWIN_GEO,
+    geo: null, // the city's data (TWIN_GEOS[city]), chosen at boot
     engine: null,
     state: {
-      scenario: 'tropical', mode: 'live', nowT: LIVE_NOW, t: LIVE_NOW, playing: false, speed: 2, streaming: false,
-      selected: null, drawer: null, orbit: false,
-      layers: { drainage: true, traffic: true, power: true, hospital: true, weather: true, flows: true, arcs: false, buildings: true, labels: true },
+      scenario: null, mode: 'live', nowT: LIVE_NOW, t: LIVE_NOW, playing: false, speed: 2, streaming: false,
+      selected: null, drawer: null, orbit: false, crisis: null,
+      layers: { drainage: true, traffic: true, power: true, telecom: true, hospital: true, weather: true, flows: true, arcs: false, buildings: true, labels: true, population: false, crises: false },
     },
     view: null,
   };
 
-  const simDate = (t) => new Date(new Date(app.geo.t0).getTime() + t * 3600e3);
+  const simDate = (t) => new Date(new Date(app.engine.t0).getTime() + t * 3600e3);
 
   // ── View ───────────────────────────────────────────────────────────────
   function computeView() {
@@ -40,12 +43,22 @@
   // ctx: the shared context from the URL (see site/store.js), applied once the twin is up.
   async function init(ctx = {}) {
     const step = (s) => { $('loadingStep').textContent = s; return nextFrame(); };
-    if (ctx.s && T.scenarios[ctx.s]) app.state.scenario = ctx.s;
+    // A city switch reloads the page (map bounds, tiles and meshes are per city).
+    const g = (app.geo = T.services.cities().find((c) => c.id === ctx.city) || T.services.geo(DEFAULT_CITY));
+    C.setTZ(g.tz, g.tzLabel);
+    $('loadingTitle').textContent = $('brandTitle').textContent = `${g.city} Digital Twin`;
+    $('brandSub').textContent = `Cascade Intelligence · ${g.region}`;
+    $('map').setAttribute('aria-label', `3D map of ${g.city}`);
+    T.site.tabs($('twinTabs'), '/twin');
+    T.site.tabs($('drawerTabs'), '/twin');
+    const s0 = app.state;
+    s0.scenario = ctx.s && T.services.runs(g.id, ctx.s) ? ctx.s : T.services.scenariosFor(g.id)[0].id;
+    s0.nowT = s0.t = liveNowOf(s0.scenario);
     await step('Assimilating 72 h of simulated sensor streams · 200-member ensemble…');
-    app.engine = T.services.engine(app.state.scenario);
+    app.engine = T.services.engine(g.id, s0.scenario);
     app.view = computeView();
 
-    await step('Loading Raleigh city model · OpenStreetMap buildings and streets…');
+    await step(`Loading ${g.city} city model · OpenStreetMap buildings, streets and rivers…`);
     const tm = await T.twinmap.create($('map'), app.geo, { ...(root.TWIN_CONFIG || {}), startDate: simDate(app.state.t) });
     app.tm = tm;
     app.map = tm.map;
@@ -79,7 +92,7 @@
     tm.map.jumpTo({ ...tm.OVERVIEW, zoom: tm.OVERVIEW.zoom - 0.9, pitch: 30, bearing: tm.OVERVIEW.bearing - 40 });
     tm.overview({ duration: 2600 });
     requestAnimationFrame(loop);
-    await app.applyContext(ctx, ['m', 't', 'a']); // the scenario was applied before the engine was built
+    await app.applyContext(ctx, ['m', 't', 'a', 'c']); // the scenario was applied before the engine was built
     urlReady = true;
     writeUrl(false);
   }
@@ -91,8 +104,15 @@
   function contextOf() {
     const s = app.state;
     const follow = s.mode === 'live' ? s.streaming || Math.abs(s.t - s.nowT) < 0.01 : Math.abs(s.t - app.engine.HOURS) < 0.01;
-    return { s: s.scenario, m: s.mode === 'historical' ? 'replay' : null, t: follow ? null : s.t, a: s.selected != null ? app.geo.facilities[s.selected].id : null };
+    return { city: app.geo.id, s: s.scenario, m: s.mode === 'historical' ? 'replay' : null, t: follow ? null : s.t, a: s.selected != null ? app.geo.facilities[s.selected].id : null, c: s.crisis };
   }
+  // Coming back to the twin from another page: apply what that page changed.
+  app.syncContext = function (ctx) {
+    const cur = contextOf();
+    const changed = ['city', 's', 't', 'm', 'a', 'c'].filter((k) => (ctx[k] || null) !== (cur[k] || null) && !(k === 's' && ctx.s == null));
+    if (changed.length) return app.applyContext(ctx, changed);
+    writeUrl(false);
+  };
   // push: a new history entry (selection, mode, scenario); otherwise the entry is replaced.
   function writeUrl(push) {
     if (!urlReady || applying || !T.store) return;
@@ -103,10 +123,14 @@
 
   app.applyContext = async function (ctx, changed) {
     const s = app.state;
+    if (changed.includes('city') && ctx.city && ctx.city !== app.geo.id && T.services.cities().some((c) => c.id === ctx.city)) {
+      location.reload(); // the address bar already holds the new city
+      return;
+    }
     applying = true;
     try {
       // A new scenario resets the clock, so mode and time are applied again after it.
-      const rebuilt = changed.includes('s') && ctx.s && T.scenarios[ctx.s] && ctx.s !== s.scenario;
+      const rebuilt = changed.includes('s') && ctx.s && T.services.runs(app.geo.id, ctx.s) && ctx.s !== s.scenario;
       if (rebuilt) {
         $('scenario').value = ctx.s;
         await setScenario(ctx.s);
@@ -119,6 +143,7 @@
         if (ctx.t == null) { s.t = s.mode === 'live' ? s.nowT : app.engine.HOURS; renderAll(true); }
         else { app.scrub(ctx.t); app.scrubEnd(); }
       }
+      if (changed.includes('c') && (ctx.c || null) !== s.crisis) app.focusCrisis(ctx.c || null, { fit: ctx.a == null });
       if (changed.includes('a')) {
         const i = ctx.a ? app.geo.facilities.findIndex((f) => f.id === ctx.a) : -1;
         const want = i >= 0 ? i : null;
@@ -161,6 +186,7 @@
     renderTop(v);
     renderStrip(v);
     renderLegend();
+    drawCrises(v);
     app.graph.render();
     app.plan.render();
     app.valid.render();
@@ -172,9 +198,9 @@
     app.timeline.update(v);
     // Sun, sky and shadows follow the scrubbed time (every ~3 simulated minutes).
     if (Math.abs(v.t - lastSunT) >= 0.05) { lastSunT = v.t; app.tm.setSimTime(simDate(v.t)); }
-    const ck = C.clockAt(app.geo.t0, v.t);
+    const ck = C.clockAt(app.engine.t0, v.t);
     $('clockT').textContent = fmtT(v.t);
-    $('clockD').innerHTML = `<span class="clock-scn">SCENARIO · </span>${ck.day} · ${ck.time} EDT`;
+    $('clockD').innerHTML = `<span class="clock-scn">SCENARIO · </span>${ck.day} · ${ck.time} ${C.tzLabel()}`;
     const tag = $('clockTag');
     if (v.mode === 'historical') { tag.textContent = 'REPLAY'; tag.className = 'clock-tag'; }
     else if (v.forecastView) { tag.textContent = `FORECAST +${(v.t - v.tNow).toFixed(1)}h`; tag.className = 'clock-tag forecast'; }
@@ -237,7 +263,7 @@
 
   // Cascade strip: one stage per system, lit when it reaches HIGH, with the time it did
   // (observed) or is expected to (forecast).
-  const STAGES = [['weather', 'Rainfall'], ['drainage', 'Drainage'], ['traffic', 'Traffic'], ['power', 'Power'], ['ems', 'EMS'], ['hospital', 'Hospital']];
+  const STAGES = [['weather', 'Hazard'], ['drainage', 'Drainage'], ['traffic', 'Traffic'], ['power', 'Power'], ['telecom', 'Telecom'], ['ems', 'EMS'], ['hospital', 'Hospital']];
   let seqCache = { k: -1, s: '', seq: [] };
   function renderStrip(v) {
     const e = app.engine;
@@ -248,7 +274,8 @@
       if (c.level === 'HIGH RISK' && !(gk in first)) first[gk] = c;
     }
     let nCritGroups = 0;
-    const html = STAGES.map(([g, label], n) => {
+    const present = (g) => g === 'weather' || e.kinds.some((k) => (k === 'pump' ? 'drainage' : k) === g);
+    const html = STAGES.filter(([g]) => present(g)).map(([g, label], n) => {
       let mx = 0;
       for (let i = 0; i < e.N; i++) { const gk = e.kinds[i] === 'pump' ? 'drainage' : e.kinds[i]; if (gk === g) mx = Math.max(mx, v.R[i]); }
       if (mx >= 0.75 && g !== 'weather') nCritGroups++;
@@ -267,6 +294,7 @@
     if (L.traffic) items.push('<span><i class="ln" style="border-color:#2b8a62"></i>Free flow</span><span><i class="ln" style="border-color:#ee8a2a"></i>Congested</span>');
     if (L.drainage) items.push('<span><i class="ln" style="border-color:#3f93d8"></i>Drainage within capacity</span><span><i class="fl"></i>Flood footprint (AR)</span>');
     if (L.power) items.push('<span><i style="height:8px;background:repeating-linear-gradient(135deg,rgba(229,72,77,.6) 0 2px,transparent 2px 5px)"></i>Outage risk area</span>');
+    if (L.crises || app.state.crisis) items.push('<span><i class="ln" style="border-top-style:dashed;border-color:#ee8a2a"></i>Crisis footprint</span>');
     if (L.flows) items.push('<span><i class="ar water"></i>Water flow</span><span><i class="ar trf"></i>Traffic diversion</span><span><i class="ar cas"></i>Cascade spread</span>');
     $('legend').innerHTML = `<div class="legend-scale"><i style="background:${RISK_HEX.normal}"></i><i style="background:${RISK_HEX.watch}"></i><i style="background:${RISK_HEX.high}"></i><i style="background:${RISK_HEX.critical}"></i></div>
       <div class="legend-labels"><span>NORMAL</span><span>WATCH</span><span>HIGH</span><span>CRITICAL</span></div>
@@ -274,14 +302,53 @@
   }
 
   function renderCrumbs() {
-    const i = app.state.selected, F = app.geo.facilities;
+    const i = app.state.selected, F = app.geo.facilities, c = app.state.crisis;
     const home = `<button class="home" id="homeBtn">${I.home} City overview</button>`;
-    $('crumbs').innerHTML = i == null
-      ? `<span>Raleigh, NC</span><span class="sep">›</span><span class="cur">All districts</span>${app.state.orbit ? '' : ''}`
-      : `<button class="crumb" id="crumbCity">Raleigh, NC</button><span class="sep">›</span><span>${esc(F[i].district)}</span><span class="sep">›</span><span class="cur">${esc(F[i].name)}</span>${home}`;
+    const crisis = c ? `<span class="crumb-crisis"><a class="num" data-nav="/crises/${esc(c)}" data-keep="1" href="${esc(T.site.href('/crises/' + c, { c: null }))}" title="Crisis details">${esc(c)}</a><button id="crisisOff" aria-label="Hide crisis ${esc(c)}">${I.close}</button></span>` : '';
+    $('crumbs').innerHTML = (i == null
+      ? `<span>${esc(app.geo.city)}</span><span class="sep">›</span><span class="cur">All districts</span>`
+      : `<button class="crumb" id="crumbCity">${esc(app.geo.city)}</button><span class="sep">›</span><span>${esc(F[i].district)}</span><span class="sep">›</span><span class="cur">${esc(F[i].name)}</span>${home}`) + crisis;
     const hb = $('homeBtn'); if (hb) hb.addEventListener('click', () => { app.select(null); app.tm.overview(); });
     const cc = $('crumbCity'); if (cc) cc.addEventListener('click', () => { app.select(null); app.tm.overview(); });
+    const co = $('crisisOff'); if (co) co.addEventListener('click', () => app.focusCrisis(null));
   }
+
+  // Crisis footprints (the analytics registry at the issue time) while a crisis is in
+  // view or the layer is on; the focused one is drawn stronger.
+  let crisisKey = '';
+  function drawCrises(v) {
+    const s = app.state, on = s.layers.crises || s.crisis != null;
+    const key = on ? `${v.kInfo}|${s.crisis}|${s.scenario}` : '';
+    if (key === crisisKey) return;
+    crisisKey = key;
+    if (!on) { app.layers.setCrises([]); return; }
+    const F = app.geo.facilities;
+    app.layers.setCrises(app.engine.analytics.crises(v.kInfo).list.map((c) => {
+      const pts = c.members.map((i) => F[i].lngLat);
+      const anchor = [pts.reduce((a, p) => a + p[0], 0) / pts.length, Math.max(...pts.map((p) => p[1])) + 0.006];
+      return { ring: T.analytics.footprint(pts), id: c.id, type: c.type, col: RISK_HEX[stateOf(c.maxR).key], focus: c.id === s.crisis, anchor };
+    }));
+  }
+  // Show a crisis from the registry: footprints on, the camera framed on its members.
+  app.focusCrisis = function (id, opts = {}) {
+    const s = app.state;
+    s.crisis = id || null;
+    if (id && !s.layers.crises) { s.layers.crises = true; const box = $('ly-crises'); if (box) box.checked = true; }
+    crisisKey = '';
+    renderCrumbs();
+    renderAll(true);
+    if (id && opts.fit !== false) {
+      const c = app.engine.analytics.crises(app.view.kInfo).list.find((x) => x.id === id);
+      if (!c) toast(`<b>Crisis</b><span>${esc(id)} is not in the registry at ${fmtT(app.view.tInfo)}.</span>`);
+      else {
+        const pts = c.members.map((i) => app.geo.facilities[i].lngLat), pad = 0.012;
+        const lng = pts.map((p) => p[0]), lat = pts.map((p) => p[1]);
+        app.tm.orbit(false); s.orbit = false; $('orbit').setAttribute('aria-pressed', 'false');
+        app.map.fitBounds([[Math.min(...lng) - pad, Math.min(...lat) - pad], [Math.max(...lng) + pad, Math.max(...lat) + pad]], { padding: app.tm.padding, pitch: 52, duration: 1600, maxZoom: 15.2 });
+      }
+    }
+    writeUrl(true);
+  };
 
   // Toasts and camera follow during playback: first critical facility per system.
   let announced = new Set(), lastFly = 0, toastTimer = 0;
@@ -291,7 +358,7 @@
       const g = e.kinds[i] === 'pump' ? 'drainage' : e.kinds[i];
       if (g === 'weather' || announced.has(g) || v.R[i] < 0.75) continue;
       announced.add(g);
-      const names = { drainage: 'Drainage over capacity', traffic: 'Road network gridlock', power: 'Substation outage risk', ems: 'EMS response failing', hospital: 'Hospital capacity critical' };
+      const names = { drainage: 'Drainage over capacity', traffic: 'Road network gridlock', power: 'Substation outage risk', telecom: 'Mobile network failing', ems: 'EMS response failing', hospital: 'Hospital capacity critical' };
       toast(`<b>Critical</b><span>${names[g]} · ${esc(e.F[i].name)} · ${fmtT(v.t)}</span>`);
       if (app.state.streaming && performance.now() - lastFly > 4500 && app.state.selected == null) {
         lastFly = performance.now();
@@ -312,6 +379,8 @@
     const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0;
     lastT = now;
     const s = app.state;
+    // Another page is in front: the clock and the map hold still.
+    if (app.paused) { requestAnimationFrame(loop); return; }
     if (s.playing) {
       s.t = Math.min(app.engine.HOURS, s.t + dt * s.speed);
       if (s.streaming) s.nowT = s.t;
@@ -360,7 +429,7 @@
   function applyLayer(key, on) {
     if (key === 'weather') { app.radar.setVisible(on); app.markers.setTypeVisible('weather', on); return; }
     app.layers.setGroup(key, on);
-    if (['drainage', 'traffic', 'power', 'hospital'].includes(key)) app.markers.setTypeVisible(key, on);
+    if (['drainage', 'traffic', 'power', 'telecom', 'hospital'].includes(key)) app.markers.setTypeVisible(key, on);
   }
   app.scrub = function (t) {
     const s = app.state;
@@ -394,7 +463,7 @@
   app.reset = function () {
     const s = app.state;
     s.playing = false; s.streaming = false;
-    s.mode = 'live'; s.nowT = LIVE_NOW; s.t = LIVE_NOW;
+    s.mode = 'live'; s.nowT = liveNowOf(s.scenario); s.t = s.nowT;
     $('modeLive').setAttribute('aria-pressed', 'true'); $('modeHist').setAttribute('aria-pressed', 'false');
     app.select(null);
     app.setDrawer(null);
@@ -409,7 +478,7 @@
     s.mode = mode; s.playing = false; s.streaming = false;
     $('modeLive').setAttribute('aria-pressed', String(mode === 'live'));
     $('modeHist').setAttribute('aria-pressed', String(mode === 'historical'));
-    if (mode === 'live') { s.nowT = LIVE_NOW; s.t = LIVE_NOW; }
+    if (mode === 'live') { s.nowT = liveNowOf(s.scenario); s.t = s.nowT; }
     else { s.nowT = app.engine.HOURS; if (!quiet) app.setDrawer('valid'); }
     app.timeline.invalidate();
     renderAll(true);
@@ -428,11 +497,11 @@
     const ld = document.createElement('div');
     ld.className = 'loading'; ld.style.background = 'rgba(9,11,14,0.82)';
     ld.innerHTML = `<div class="loading-title">${esc(T.scenarios[id].label)}</div><div class="loading-bar"><i></i></div><div class="loading-step">Re-running the 200-member ensemble and replaying the simulated sensor streams…</div>`;
-    if (!T.services.cached(id)) { $('app').appendChild(ld); await nextFrame(); await nextFrame(); }
-    app.engine = T.services.engine(id);
+    if (!T.services.cached(app.geo.id, id)) { $('app').appendChild(ld); await nextFrame(); await nextFrame(); }
+    app.engine = T.services.engine(app.geo.id, id);
     precomputePaths();
     app.graph.reset(); app.valid.reset(); app.timeline.invalidate();
-    s.nowT = s.mode === 'live' ? LIVE_NOW : app.engine.HOURS;
+    s.nowT = s.mode === 'live' ? liveNowOf(id) : app.engine.HOURS;
     s.t = s.nowT;
     renderAll(true);
     if (s.selected != null) app.inspector.open(s.selected);
@@ -475,10 +544,16 @@
     $('btnPlan').addEventListener('click', () => app.setDrawer('plan'));
     $('btnValid').addEventListener('click', () => app.setDrawer('valid'));
     const sel = $('scenario');
-    sel.innerHTML = Object.values(T.scenarios).map((s) => `<option value="${s.id}">${esc(s.label)}${s.provenance ? ' · ' + esc(s.provenance.kind) : ''}</option>`).join('');
+    sel.innerHTML = T.services.scenariosFor(app.geo.id).map((s) => `<option value="${s.id}">${esc(s.label)}${s.provenance ? ' · ' + esc(s.provenance.kind) : ''}</option>`).join('');
     sel.value = app.state.scenario;
     sel.addEventListener('change', () => setScenario(sel.value));
+    // City: scenario, time and selection belong to a city, so they reset with it.
+    const csel = $('citySel');
+    csel.innerHTML = T.services.cities().map((c) => `<option value="${c.id}">${esc(c.city)}</option>`).join('');
+    csel.value = app.geo.id;
+    csel.addEventListener('change', () => { T.store.set({ city: csel.value, s: null, t: null, m: null, a: null }, { push: true }); location.reload(); });
     $('scenIco').innerHTML = I.chevron;
+    $('cityIco').innerHTML = I.chevron;
     // Map controls
     $('zoomIn').innerHTML = I.plus; $('zoomOut').innerHTML = I.minus; $('north').innerHTML = I.compass; $('tilt').innerHTML = I.tilt;
     $('zoomIn').addEventListener('click', () => app.map.zoomIn());
@@ -490,7 +565,7 @@
     // Narrow-screen drawer
     $('drawerBtn').innerHTML = I.menu;
     $('drawerBtn').addEventListener('click', () => $('app').classList.toggle('drawer-open'));
-    document.querySelector('.left').addEventListener('click', (e) => { if (e.target.closest('.row')) $('app').classList.remove('drawer-open'); });
+    document.querySelector('.left').addEventListener('click', (e) => { if (e.target.closest('.row, .site-tabs a')) $('app').classList.remove('drawer-open'); });
     // Keyboard
     window.addEventListener('keydown', (e) => {
       if (e.target.matches('input, select, textarea')) return;
@@ -502,6 +577,11 @@
   }
 
   app.toast = toast;
+  app.pause = function (on) {
+    app.paused = !!on;
+    if (on) { app.state.playing = false; if (app.state.orbit) app.tm.orbit(false); }
+    else if (app.state.orbit) app.tm.orbit(true);
+  };
   // Started by the #/twin page (views/twin.js) with the shared context from the URL.
   app.boot = function (ctx) {
     init(ctx).catch((err) => {

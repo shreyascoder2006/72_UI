@@ -3,8 +3,12 @@
 // Steps: {"time":37} {"layers":{"power":false}} {"select":"Duke Raleigh"} {"camera":{...jumpTo}}
 //        {"wait":1000} {"shot":"name"} {"clip":[x,y,w,h]} {"eval":"js"}
 const { chromium } = require('playwright');
+// The bare URL opens the overview of the default city; these checks are about Raleigh's
+// twin (pass a URL with a hash for another page or city).
+const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
 (async () => {
-  const [url, out, json] = process.argv.slice(2);
+  const [arg, out, json] = process.argv.slice(2);
+  const url = twinUrl(arg);
   const steps = JSON.parse(json || '[]');
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'], proxy });
@@ -21,7 +25,7 @@ const { chromium } = require('playwright');
     if (s.time != null) await page.evaluate((t) => { TWIN.app.scrub(t); TWIN.app.scrubEnd(); }, s.time);
     if (s.layers) await page.evaluate((L) => { for (const [k, v] of Object.entries(L)) TWIN.app.setLayer(k, v); }, s.layers);
     if (s.select) {
-      await page.evaluate((n) => { const i = TWIN_GEO.facilities.findIndex((f) => f.name.includes(n)); TWIN.app.select(i, { fly: true }); }, s.select);
+      await page.evaluate((n) => { const i = TWIN.app.geo.facilities.findIndex((f) => f.name.includes(n)); TWIN.app.select(i, { fly: true }); }, s.select);
       await page.waitForTimeout(2600);
     }
     if (s.camera) await page.evaluate((c) => { TWIN.app.map.stop(); TWIN.app.map.jumpTo(c); }, s.camera);

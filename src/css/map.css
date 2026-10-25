@@ -50,6 +50,7 @@
 .tools { position: absolute; right: 12px; top: 12px; display: flex; align-items: center; gap: 6px; }
 .tools .btn { height: 32px; border-radius: 16px; }
 .tools select { height: 32px; border-radius: 16px; }
+.tools .city-sel select { max-width: 130px; }
 .cascade-strip {
   position: absolute; left: 50%; top: 54px; transform: translateX(-50%); display: flex; align-items: center; gap: 0;
   height: 30px; padding: 0 4px; border-radius: 15px; border: 1px solid var(--line-strong); max-width: calc(100% - 24px); overflow: hidden;

@@ -14,7 +14,8 @@
 
    Ported from vizsh/72_hours_CASCADE (src/js/engine/analytics.js at 9bc9058) with the
    owner's permission. Local change: without a population layer, people exposed is null
-   (not modeled) rather than 0. */
+   (not modeled) rather than 0. The site passes opts.peopleFor from population.js (the
+   residents whose nearest exposed facility is a member). */
 (function (root) {
   const C = root.TWIN.core;
   const { clamp } = C;
@@ -200,5 +201,27 @@
     return { cascadeR, crises, crossing };
   }
 
-  root.TWIN.analytics = { create, SYS_LABEL, FAMILY_LABEL, familyOf, group };
+  // Footprint of a crisis: the convex hull of a disc (radiusM) around each member
+  // facility, as a closed [lng, lat] ring. Ported from vizsh/72_hours_CASCADE
+  // (src/js/engine/comms.js footprint() at 9bc9058) with the owner's permission.
+  function footprint(lngLats, radiusM = 650) {
+    if (!lngLats.length) return [];
+    const lat0 = lngLats[0][1];
+    const kx = 111320 * Math.cos((lat0 * Math.PI) / 180), ky = 110540;
+    const pts = [];
+    for (const [lng, lat] of lngLats) for (let a = 0; a < 12; a++) {
+      const th = (a / 12) * Math.PI * 2;
+      pts.push([lng + (radiusM * Math.cos(th)) / kx, lat + (radiusM * Math.sin(th)) / ky]);
+    }
+    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lower = [], upper = [];
+    for (const p of pts) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
+    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
+    const ring = lower.slice(0, -1).concat(upper.slice(0, -1));
+    ring.push(ring[0]);
+    return ring;
+  }
+
+  root.TWIN.analytics = { create, footprint, SYS_LABEL, FAMILY_LABEL, SYS_ORDER, familyOf, group };
 })(typeof window !== 'undefined' ? window : globalThis);

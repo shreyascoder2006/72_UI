@@ -1,6 +1,9 @@
 """Rewrite the baked OpenMapTiles building layer for realism and per-facility control.
 
-    python3 tools/enrich_buildings.py
+    python3 tools/enrich_buildings.py                 # Raleigh
+    python3 tools/enrich_buildings.py --city nagpur   # Nagpur (needs its geodata first)
+
+Only the city's own tiles are touched (both cities share data/tiles).
 
 OpenFreeMap merges every building of the same height in a tile into one feature and
 carries no building class, and most Raleigh buildings have no height tag (OpenMapTiles
@@ -31,8 +34,9 @@ sys.path.insert(0, HERE)
 
 import mvt  # noqa: E402
 
-GEO = os.path.join(ROOT, "src", "js", "data", "geodata.js")
-SITES = os.path.join(HERE, "osm", "facility_sites.json")
+CITY_ID = sys.argv[sys.argv.index("--city") + 1] if "--city" in sys.argv else "raleigh"
+GEO = os.path.join(ROOT, "src", "js", "data", "geodata.js" if CITY_ID == "raleigh" else f"geodata_{CITY_ID}.js")
+SITES = os.path.join(HERE, "osm", "facility_sites.json" if CITY_ID == "raleigh" else f"facility_sites_{CITY_ID}.json")
 
 LANDUSE_CLASS = {
     "commercial": "commercial", "retail": "commercial",
@@ -46,6 +50,7 @@ LANDUSE_CLASS = {
 # that contain the facility point, are lifted out of the tiles. Weather stations are never
 # lifted; one inside a building is mounted on its roof instead.
 SITE_R = {"hospital": 20, "ems": 18, "pump": 15, "power": 28, "traffic": 8, "drainage": 10, "weather": 0}
+# Kinds without a hero model (telecom) never lift anything.
 MAX_CONTAIN_AREA = 12000  # m²: never lift a whole campus slab just because the point is inside
 # Height ~ a + b·ln(area), clamped (m), per class.
 HEIGHT_MODEL = {
@@ -64,7 +69,15 @@ def kind_of(f):
 
 def load_geo():
     src = open(GEO, encoding="utf-8").read()
-    return json.loads(src[src.index("{"):src.rindex("}") + 1])
+    return json.loads(src[src.index("] = ") + 4:src.rindex("}") + 1])
+
+
+def tile_range(extent, z):
+    n = 2 ** z
+    tx = lambda lon: int((lon + 180) / 360 * n)  # noqa: E731
+    ty = lambda lat: int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)  # noqa: E731
+    w, s, e, nn = extent
+    return tx(w), ty(nn), tx(e), ty(s)
 
 
 def metres(a, b):
@@ -165,8 +178,11 @@ def main():
         tiles = []
         pieces = []  # one record per polygon piece in this zoom
         vertex_owner = {}
+        rx0, ry0, rx1, ry1 = tile_range(geo["extent"], z)
         for path in sorted(glob.glob(os.path.join(ROOT, "data", "tiles", str(z), "*", "*.pbf"))):
             tx, ty = int(path.split(os.sep)[-2]), int(os.path.basename(path)[:-4])
+            if not (rx0 - 1 <= tx <= rx1 + 1 and ry0 - 1 <= ty <= ry1 + 1):
+                continue  # another city's tiles
             data = open(path, "rb").read()
             layers = mvt.split_layers(data)
             names = [n for n, _ in layers]
@@ -194,8 +210,9 @@ def main():
             for i, f in enumerate(F):
                 px = ((f["lngLat"][0] + 180) / 360 * n2 - tx) * ext
                 py = ((1 - math.asinh(math.tan(math.radians(f["lngLat"][1]))) / math.pi) / 2 * n2 - ty) * ext
-                if -ext * 0.2 < px < ext * 1.2 and -ext * 0.2 < py < ext * 1.2:
-                    near.append((i, px, py, SITE_R[kind_of(f)] / mpu))
+                r = SITE_R.get(kind_of(f))
+                if r is not None and -ext * 0.2 < px < ext * 1.2 and -ext * 0.2 < py < ext * 1.2:
+                    near.append((i, px, py, r / mpu))
             tile = {"path": path, "layers": layers, "ext": ext, "version": B["version"], "tx": tx, "ty": ty, "pieces": []}
             tiles.append(tile)
             for feat in B["features"]:

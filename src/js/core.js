@@ -27,6 +27,7 @@
     traffic:  { label: 'Traffic',  short: 'TRF', layer: 'traffic' },
     power:    { label: 'Power',    short: 'PWR', layer: 'power' },
     hospital: { label: 'Hospital & EMS', short: 'HSP', layer: 'hospital' },
+    telecom:  { label: 'Telecom',  short: 'TEL', layer: 'telecom' },
     weather:  { label: 'Weather',  short: 'WX',  layer: 'weather' },
   };
 
@@ -112,11 +113,14 @@
     const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
     return mm ? `${hh}h ${String(mm).padStart(2, '0')}m` : `${hh}h`;
   }
+  // Clock times are shown in the city's zone, whatever the viewer's zone is.
+  let TZ = 'America/New_York', TZ_LABEL = 'EDT';
+  function setTZ(zone, label) { TZ = zone || TZ; TZ_LABEL = label || TZ_LABEL; }
+  const tzLabel = () => TZ_LABEL;
   function clockAt(t0, t) {
     const d = new Date(new Date(t0).getTime() + t * 3600e3);
-    // Render in America/New_York regardless of the viewer's zone.
     const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', weekday: 'short', day: '2-digit', month: 'short',
+      timeZone: TZ, weekday: 'short', day: '2-digit', month: 'short',
       hour: '2-digit', minute: '2-digit', hour12: false,
     }).formatToParts(d).reduce((o, p) => ((o[p.type] = p.value), o), {});
     return { day: `${parts.weekday} ${parts.day} ${parts.month}`.toUpperCase(), time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`, hour: (+parts.hour % 24) + +parts.minute / 60 };
@@ -153,6 +157,6 @@
     mulberry32, hash3, tnoise, gauss,
     clamp, lerp, sigmoid, bump, quantile,
     haversine, bearing, measure, along,
-    pct, fmtT, fmtDur, clockAt, sunPosition, dayPhase,
+    pct, fmtT, fmtDur, clockAt, setTZ, tzLabel, sunPosition, dayPhase,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

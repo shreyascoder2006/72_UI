@@ -1,7 +1,10 @@
 // Interaction test: streaming replay, scenario switch, phone viewport.
 const { chromium } = require('playwright');
+// The bare URL opens the overview of the default city; these checks are about Raleigh's
+// twin (pass a URL with a hash for another page or city).
+const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
 (async () => {
-  const url = process.argv[2] || 'http://127.0.0.1:8765/index.html', out = process.argv[3] || '.';
+  const url = twinUrl(process.argv[2] || 'http://127.0.0.1:8765/index.html'), out = process.argv[3] || '.';
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });

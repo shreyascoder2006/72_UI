@@ -7,7 +7,7 @@
    the posterior at the decision time, so the comparison uses only information
    available then. Selection under a crew budget is greedy by benefit per crew. */
 (function (root) {
-  const CATALOG = [
+  const RALEIGH = [
     {
       id: 'pumps-phu', cost: 2, label: 'Mobile pumps at Pigeon House culvert',
       detail: 'Stage two trailer pumps at the Capital Blvd culvert to draw the branch down ahead of the second band.',
@@ -58,6 +58,101 @@
     },
   ];
 
+  const CATALOGS = { raleigh: RALEIGH };
+
+  // A catalogue derived from the dependency graph, so any city gets meaningful actions:
+  // the facilities that feed the most consequential downstream links get the remedies.
+  // Ported from vizsh/72_hours_CASCADE (interventions.js at 9bc9058) with the owner's
+  // permission; Nagpur uses it, Raleigh keeps its hand-written catalogue above.
+  function generate(e) {
+    const F = e.F, kinds = e.kinds, out = [];
+    const name = (i) => F[i].name;
+    const all = F.map((_, i) => i);
+    const linksOf = (i, toKind) => e.outEdges[i].map((n) => e.E[n]).filter((ed) => !toKind || toKind.includes(kinds[ed.to]));
+    const inOf = (i, fromKind) => e.inEdges[i].map((n) => e.E[n]).filter((ed) => !fromKind || fromKind.includes(kinds[ed.from]));
+    const score = (i) => linksOf(i).reduce((s, ed) => s + ed.w * (4 - F[ed.to].tier), 0);
+    const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    // 1. mobile pumps at the two drainage points with the most downstream consequence
+    const drains = all.filter((i) => kinds[i] === 'drainage').sort((a, b) => score(b) - score(a));
+    for (const i of drains.slice(0, 2)) {
+      const downs = linksOf(i, ['drainage']).map((ed) => ed.to);
+      out.push({ id: 'pumps-' + slug(F[i].id), cost: 2, label: 'Mobile pumps at ' + name(i),
+        detail: 'Stage two trailer pumps to draw ' + (F[i].creek || 'the channel') + ' down before the peak.',
+        mods: (en, k) => [fac(en, F[i].id, k, { scale: 0.55 }), ...downs.map((j) => fac(en, F[j].id, k, { scale: 0.8 }))], side: null });
+    }
+    // 2. early closure of the junction most exposed to flooding, with a signed detour
+    const trf = all.filter((i) => kinds[i] === 'traffic' && inOf(i, ['drainage']).length).sort((a, b) => score(b) - score(a));
+    if (trf.length) {
+      const i = trf[0];
+      const floodIn = inOf(i, ['drainage']);
+      const emsOut = linksOf(i, ['ems']);
+      const nb = linksOf(i, ['traffic']).map((ed) => ed.to).slice(0, 2);
+      out.push({ id: 'close-' + slug(F[i].id), cost: 1, label: 'Close ' + name(i) + ' early, signed detour',
+        detail: 'Close before ponding and route traffic and ambulances around it, so vehicles are not trapped in water.',
+        mods: (en, k) => [...floodIn.map((ed) => edge(en, F[ed.from].id, F[i].id, k, 0.3)), ...emsOut.map((ed) => edge(en, F[i].id, F[ed.to].id, k, 0.5)),
+          ...nb.map((j) => fac(en, F[j].id, k, { add: 0.1 }))],
+        side: nb.length ? 'Detour adds load at ' + nb.map(name).join(' and ') : null });
+    }
+    // 3. pre-stage ambulances away from the crossings that will flood
+    const ems = all.filter((i) => kinds[i] === 'ems');
+    if (ems.length > 1) {
+      const routes = ems.flatMap((j) => inOf(j, ['traffic']));
+      const spare = ems.slice().sort((a, b) => F[b].tier - F[a].tier)[0];
+      out.push({ id: 'stage-ems', cost: 2, label: 'Pre-stage ambulances outside the flood zone',
+        detail: 'Move units to high ground near the hospitals so responses do not cross flooded roads.',
+        mods: (en, k) => [...routes.map((ed) => edge(en, F[ed.from].id, F[ed.to].id, k, 0.4)), fac(en, F[spare].id, k, { add: 0.05 })],
+        side: 'Fewer units left at ' + name(spare) });
+    }
+    // 4. mobile generation at the hospital most exposed to feeder loss
+    const hosp = all.filter((i) => kinds[i] === 'hospital' && inOf(i, ['power']).length)
+      .sort((a, b) => F[a].tier - F[b].tier || (F[b].beds || 0) - (F[a].beds || 0));
+    if (hosp.length) {
+      const i = hosp[0];
+      const feeds = inOf(i, ['power']);
+      out.push({ id: 'gen-' + slug(F[i].id), cost: 2, label: 'Mobile generation at ' + name(i),
+        detail: 'Bring a trailer generator and pre-switch the campus to its alternate feeder.',
+        mods: (en, k) => feeds.map((ed) => edge(en, F[ed.from].id, F[i].id, k, 0.3)), side: null });
+    }
+    // 5. flood barriers at the substation most exposed to water
+    const subs = all.filter((i) => kinds[i] === 'power' && inOf(i, ['drainage']).length).sort((a, b) => score(b) - score(a));
+    if (subs.length) {
+      const i = subs[0];
+      const wet = inOf(i, ['drainage']);
+      out.push({ id: 'barrier-' + slug(F[i].id), cost: 1, label: 'Flood barriers at ' + name(i),
+        detail: 'Deploy inflatable barriers around the substation yard in the floodplain.',
+        mods: (en, k) => wet.map((ed) => edge(en, F[ed.from].id, F[i].id, k, 0.25)), side: null });
+    }
+    // 6. diesel and battery top-up at the mobile sites dispatch depends on
+    const tel = all.filter((i) => kinds[i] === 'telecom');
+    if (tel.length) {
+      const feeds = tel.flatMap((j) => inOf(j, ['power']));
+      out.push({ id: 'tel-backup', cost: 1, label: 'Diesel and batteries to mobile sites',
+        detail: 'Send fuel trucks and spare battery banks to the sites that carry calls to dispatch.',
+        mods: (en, k) => feeds.map((ed) => edge(en, F[ed.from].id, F[ed.to].id, k, 0.35)), side: null });
+    }
+    // 7. evacuate the floodplain that sends the largest casualty surge
+    const surge = all.filter((i) => kinds[i] === 'drainage' && linksOf(i, ['hospital']).length).sort((a, b) => (F[b].people || 0) - (F[a].people || 0));
+    if (surge.length) {
+      const i = surge[0];
+      const toH = linksOf(i, ['hospital']);
+      const roads = linksOf(i, ['traffic']).map((ed) => ed.to).slice(0, 2);
+      out.push({ id: 'evac-' + slug(F[i].id), cost: 2, label: 'Evacuate the floodplain at ' + F[i].district,
+        detail: 'Move about ' + Math.round((F[i].people || 20000) / 1000) + 'k residents out of low-lying blocks before the river crests.',
+        mods: (en, k) => [...toH.map((ed) => edge(en, F[i].id, F[ed.to].id, k, 0.35)), ...roads.map((j) => fac(en, F[j].id, k, { add: 0.16 }, 12))],
+        side: roads.length ? 'Evacuation traffic at ' + roads.map(name).join(' and ') + ' for about 6 h' : null });
+    }
+    // 8. regional load balancing between hospitals
+    const hh = e.E.filter((ed) => kinds[ed.from] === 'hospital' && kinds[ed.to] === 'hospital');
+    if (hh.length) {
+      const small = all.filter((i) => kinds[i] === 'hospital').sort((a, b) => (F[a].beds || 999) - (F[b].beds || 999))[0];
+      out.push({ id: 'diversion', cost: 1, label: 'Regional load balancing of transports',
+        detail: 'Send non-critical transports to smaller hospitals to protect the trauma centre.',
+        mods: (en, k) => [...hh.map((ed) => edge(en, F[ed.from].id, F[ed.to].id, k, 0.5)), fac(en, F[small].id, k, { add: 0.1 })],
+        side: 'Raises census at ' + name(small) });
+    }
+    return out;
+  }
+
   function fac(e, id, k, o, dur) { return { kind: 'fac', i: e.idx[id], from: k, to: dur ? k + dur : null, ...o }; }
   function edge(e, from, to, k, scale) {
     const n = e.E.findIndex((x) => x.from === e.idx[from] && x.to === e.idx[to]);
@@ -66,6 +161,7 @@
 
   function create(engine) {
     const { M, N, K, DT, F, CRIT } = { ...engine, CRIT: root.TWIN.engine.CRIT };
+    const CATALOG = CATALOGS[engine.geo.id] || generate(engine);
     const tierW = F.map((f) => (f.type === 'weather' ? 0 : 4 - f.tier));
 
     // Storm-level posterior at step k: mean of the local weights over facilities.
@@ -127,13 +223,16 @@
     }
 
     // Greedy selection by marginal reduction of expected critical facility-hours per crew.
-    function recommend(k, budget) {
+    // A generator that pauses after each evaluation, so a page can spread the search over
+    // frames (recommendAsync); recommend() runs it straight through.
+    function* search(k, budget) {
       let chosen = [], spent = 0;
       let current = evaluate(k, [], 16).with.critHours;
       for (;;) {
         let best = null;
         for (const a of CATALOG) {
           if (chosen.includes(a.id) || spent + a.cost > budget) continue;
+          yield chosen;
           const v = evaluate(k, [...chosen, a.id], 16).with.critHours;
           const gain = (current - v) / a.cost;
           if (gain > 0.05 && (!best || gain > best.gain)) best = { id: a.id, gain, v, cost: a.cost };
@@ -143,9 +242,21 @@
       }
       return chosen;
     }
+    function recommend(k, budget) {
+      const it = search(k, budget);
+      let r;
+      while (!(r = it.next()).done);
+      return r.value;
+    }
+    async function recommendAsync(k, budget) {
+      const it = search(k, budget);
+      let r;
+      while (!(r = it.next()).done) await new Promise((res) => setTimeout(res, 0));
+      return r.value;
+    }
 
-    return { CATALOG, evaluate, recommend };
+    return { CATALOG, evaluate, recommend, recommendAsync };
   }
 
-  root.TWIN.interventions = { CATALOG, create };
+  root.TWIN.interventions = { CATALOGS, generate, create };
 })(typeof window !== 'undefined' ? window : globalThis);

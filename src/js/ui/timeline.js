@@ -15,17 +15,23 @@
     const play = document.getElementById('play');
     const speedBtn = document.getElementById('speed');
 
-    // Axis: day names at local midnight, hours every 6 h.
-    const parts = [];
-    for (let t = 0; t <= H; t += 6) {
-      const ck = C.clockAt(app.geo.t0, t);
-      const midnight = Math.abs(ck.hour) < 0.01;
-      const pos = (t / H) * 100;
-      const align = t === 0 ? 'transform:none' : t === H ? 'transform:translateX(-100%)' : '';
-      const cls = midnight ? 'day' : Math.round(ck.hour) % 12 === 0 ? 'h12' : 'h6';
-      parts.push(`<span class="${cls}" style="left:${pos}%;${align}">${midnight ? ck.day.split(' ')[0] : ck.time}</span>`);
+    // Axis: day names at local midnight, hours every 6 h, from the scenario's own clock
+    // (a reconstruction runs on its own dates), rebuilt when that changes.
+    let axisT0 = null;
+    function buildAxis() {
+      axisT0 = app.engine.t0;
+      const parts = [];
+      for (let t = 0; t <= H; t += 6) {
+        const ck = C.clockAt(axisT0, t);
+        const midnight = Math.abs(ck.hour) < 0.01;
+        const pos = (t / H) * 100;
+        const align = t === 0 ? 'transform:none' : t === H ? 'transform:translateX(-100%)' : '';
+        const cls = midnight ? 'day' : Math.round(ck.hour) % 12 === 0 ? 'h12' : 'h6';
+        parts.push(`<span class="${cls}" style="left:${pos}%;${align}">${midnight ? ck.day.split(' ')[0] : ck.time}</span>`);
+      }
+      axis.innerHTML = parts.join('');
     }
-    axis.innerHTML = parts.join('');
+    buildAxis();
 
     const tFromX = (x) => C.clamp(((x - track.getBoundingClientRect().left) / track.clientWidth) * H, 0, H);
     let dragging = false;
@@ -76,6 +82,7 @@
     }
 
     function update(v) {
+      if (app.engine.t0 !== axisT0) buildAxis();
       drawTrack(v);
       thumb.style.left = (v.t / H) * 100 + '%';
       thumbT.textContent = C.fmtT(v.t);
@@ -84,8 +91,8 @@
       track.setAttribute('aria-valuenow', String(v.t));
       play.innerHTML = app.state.playing ? I.pause : I.play;
       play.setAttribute('aria-label', app.state.playing ? 'Pause' : 'Play');
-      const s = C.clockAt(app.geo.t0, 0), e2 = C.clockAt(app.geo.t0, H);
-      document.getElementById('tlRange').textContent = `${s.day} 00:00 → ${e2.day} 00:00 EDT`;
+      const s = C.clockAt(app.engine.t0, 0), e2 = C.clockAt(app.engine.t0, H);
+      document.getElementById('tlRange').textContent = `${s.day} ${s.time} → ${e2.day} ${e2.time} ${C.tzLabel()}`;
     }
     return { update, invalidate: () => (cache.key = '') };
   }

@@ -5,8 +5,11 @@
 // for the tiles, then times rendered frames with gl.finish(): "static" frames reuse the
 // cached shadow map, "moving" frames pan the camera so the shadow pass re-renders.
 const { chromium } = require('playwright');
+// The bare URL opens the overview of the default city; these checks are about Raleigh's
+// twin (pass a URL with a hash for another page or city).
+const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
 (async () => {
-  const url = process.argv[2] || 'http://127.0.0.1:8765/index.html';
+  const url = twinUrl(process.argv[2] || 'http://127.0.0.1:8765/index.html');
   const gpu = process.argv[3] === 'gpu';
   const args = gpu ? ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=default'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
   const browser = await chromium.launch({ args });

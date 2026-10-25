@@ -1,26 +1,64 @@
-/* The one way pages reach the cascade engine. An engine is built per scenario on first use
-   and kept for the scenario in view and the one before it (each holds about 20 MB of
-   ensemble state), so switching back is instant and every page reads the same numbers.
-   Products built on an engine (analytics, the intervention planner) are attached to it
-   once, so no page builds a second copy. */
+/* The one way pages reach the cascade engine. An engine is built per city and scenario
+   on first use and kept for the one in view and the one before it (each holds about
+   20 MB of ensemble state), so switching back is instant and every page reads the same
+   numbers. Products built on an engine (analytics, the intervention planner, the
+   recommended plan) are attached to it once, so no page builds a second copy. */
 (function (root) {
   const T = root.TWIN;
   const KEEP = 2;
-  const engines = new Map(); // scenario id → engine, most recently used last
+  const engines = new Map(); // "city|scenario" → engine, most recently used last
+  const pops = new Map();    // city → population model
 
-  function engine(scenario) {
-    if (!T.scenarios[scenario]) throw new Error('Unknown scenario ' + scenario);
-    let e = engines.get(scenario);
-    if (e) engines.delete(scenario);
+  const geoOf = (city) => {
+    const g = root.TWIN_GEOS && root.TWIN_GEOS[city];
+    if (!g) throw new Error('Unknown city ' + city);
+    return g;
+  };
+  // Scenarios a city can run: the ones written for it first, then the generic ones.
+  const scenariosFor = (city) => Object.values(T.scenarios)
+    .filter((s) => !s.cities || s.cities.includes(city))
+    .sort((a, b) => Number(!!b.cities) - Number(!!a.cities));
+  const runs = (city, scenario) => scenariosFor(city).some((s) => s.id === scenario);
+
+  function population(city) {
+    if (!pops.has(city)) pops.set(city, T.population.create(geoOf(city)));
+    return pops.get(city);
+  }
+
+  function engine(city, scenario) {
+    const geo = geoOf(city);
+    if (!runs(city, scenario)) throw new Error(`Scenario ${scenario} is not available for ${geo.city}`);
+    const key = city + '|' + scenario;
+    let e = engines.get(key);
+    if (e) engines.delete(key);
     else {
-      e = T.engine.create(root.TWIN_GEO, { scenario });
-      e.analytics = T.analytics.create(e);
+      e = T.engine.create(geo, { scenario });
+      const pop = population(city);
+      e.analytics = T.analytics.create(e, pop.modeled ? { peopleFor: pop.peopleFor } : {});
     }
-    engines.set(scenario, e);
+    engines.set(key, e);
     while (engines.size > KEEP) engines.delete(engines.keys().next().value);
     return e;
   }
   const planner = (e) => e.planner || (e.planner = T.interventions.create(e));
 
-  T.services = { engine, planner, cached: (scenario) => engines.has(scenario) };
+  // The planner's recommendation within a crew budget at decision step k, with its
+  // expected outcome. The search takes seconds, so it runs spread over frames and is
+  // kept on the engine: a page that asks again gets the same promise.
+  function recommended(e, k, budget = 5) {
+    const cache = e.recommended || (e.recommended = new Map());
+    const key = k + '|' + budget;
+    if (!cache.has(key)) {
+      const p = planner(e);
+      cache.set(key, p.recommendAsync(k, budget).then((ids) => ({ k, budget, ids, result: ids.length ? p.evaluate(k, ids) : null })));
+    }
+    return cache.get(key);
+  }
+
+  T.services = {
+    engine, planner, recommended, population, scenariosFor, runs,
+    cities: () => Object.values(root.TWIN_GEOS || {}),
+    geo: geoOf,
+    cached: (city, scenario) => engines.has(city + '|' + scenario),
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

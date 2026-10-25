@@ -10,6 +10,7 @@
        files cannot be fetched (e.g. opened from file://) it falls back to live
        OpenFreeMap tiles. */
 (function (root) {
+  // Default camera; each city's data carries its own (geo.overview).
   const OVERVIEW = { center: [-78.6440, 35.7990], zoom: 13.05, pitch: 58, bearing: -20 };
   const MAPBOX_VER = '3.31.0';
   // Mapbox Standard configuration: realistic geometry and lighting, desaturated
@@ -92,7 +93,7 @@
     const lightPreset = root.TWIN.core.dayPhase(root.TWIN.core.sunPosition(cfg.startDate || new Date(), geo.center[1], geo.center[0]));
     const map = new gl.Map({
       container, style: 'mapbox://styles/mapbox/standard', config: { basemap: { ...STANDARD, lightPreset } },
-      ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75, projection: 'mercator',
+      ...(geo.overview || OVERVIEW), antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75, projection: 'mercator',
     });
     try {
       await new Promise((res, rej) => {
@@ -154,7 +155,7 @@
     const [W, S, E, N] = geo.extent;
     const style = root.TWIN.style.build({ tiles, glyphs, extent: geo.extent, attribution: geo.attribution, sites: geo.sites });
     const map = new gl.Map({
-      container, style, ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75,
+      container, style, ...(geo.overview || OVERVIEW), antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75,
       maxBounds: [[W - 0.07, S - 0.06], [E + 0.07, N + 0.06]], fadeDuration: 120, dragRotate: true, pitchWithRotate: true,
     });
     await new Promise((res) => map.once('load', res));
@@ -172,16 +173,17 @@
     const { gl, map } = M;
     map.addControl(new gl.AttributionControl({ compact: true, customAttribution: geo.attribution }), 'bottom-right');
 
+    const OV = geo.overview || OVERVIEW;
     let padding = { top: 48, bottom: 110, left: 330, right: 10 };
     function setPadding(p) { padding = { ...padding, ...p }; map.easeTo({ padding, duration: 350 }); }
 
     function flyToFacility(f, opts = {}) {
       // Close enough for the facility's hero model to read (see heroes.js).
-      const zoom = (f.subtype === 'EMS station' ? 17.5 : f.subtype === 'Pumping station' ? 17.9 : { hospital: 16.5, power: 17.3, traffic: 17.7, drainage: 15.9, weather: 18.1 }[f.type]) || 17;
+      const zoom = (f.subtype === 'EMS station' ? 17.5 : f.subtype === 'Pumping station' ? 17.9 : { hospital: 16.5, power: 17.3, traffic: 17.7, drainage: 15.9, weather: 18.1, telecom: 16.2 }[f.type]) || 17;
       map.flyTo({ center: f.lngLat, zoom: opts.zoom || zoom, pitch: 62, bearing: map.getBearing() + (opts.turn || 0), duration: opts.duration || 1200, curve: 1.42, padding, essential: true });
     }
     function overview(opts = {}) {
-      map.flyTo({ ...OVERVIEW, padding, duration: opts.duration || 1400, curve: 1.3, essential: true });
+      map.flyTo({ ...OV, padding, duration: opts.duration || 1400, curve: 1.3, essential: true });
     }
 
     let orbitOn = false, last = 0;
@@ -212,7 +214,7 @@
     }
 
     return {
-      ...M, OVERVIEW, base: baseURL(cfg), setPadding, flyToFacility, overview, orbit, setSimTime,
+      ...M, OVERVIEW: OV, base: baseURL(cfg), setPadding, flyToFacility, overview, orbit, setSimTime,
       onUserInteract: (cb) => interactListeners.push(cb),
       onDaylight: (cb) => { daylightListeners.push(cb); if (daylight) cb(daylight); },
       get daylight() { return daylight; },

@@ -280,3 +280,20 @@ DISTRICTS = [
 
 # Named corridors that make up the monitored road network for the traffic layer.
 CORRIDOR_CLASSES = {"motorway", "trunk", "primary", "secondary"}
+
+CITY = "Raleigh"
+REGION = "North Carolina"
+TZ = "America/New_York"
+TZ_LABEL = "EDT"
+OVERVIEW = dict(center=[-78.6440, 35.7990], zoom=13.05, pitch=58, bearing=-20)
+
+# Sensor faults and planted reports for this city (applied to the observation stream only).
+FAULTS = [
+    dict(id="DRN-CTL", kind="stuck", **{"from": 18}, to=40, note="Gauge reading frozen"),
+    dict(id="TRF-WOB", kind="dropout", **{"from": 28}, to=38, note="Camera feed offline"),
+    dict(id="WX-NCS", kind="bias", **{"from": 30}, to=72, value=0.3, note="Gauge reading high, likely debris in funnel"),
+]
+FALSE_REPORTS = [
+    dict(t=16.5, near="TRF-FMS", text="Street flooding, cars stalled at Fayetteville St & Martin St"),
+    dict(t=12.5, near="PWR-MRD", text="Explosion at the Wade Ave substation, west Raleigh without power"),
+]

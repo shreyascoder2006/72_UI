@@ -6,7 +6,7 @@ for (const f of ['src/js/data/geodata.js', 'src/js/core.js', 'src/js/engine/scen
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
 const scen = process.argv[2] || 'tropical';
 const t0 = Date.now();
-const E = TWIN.engine.create(TWIN_GEO, { scenario: scen });
+const E = TWIN.engine.create(TWIN_GEOS.raleigh, { scenario: scen });
 console.log(`scenario=${scen} create: ${Date.now() - t0} ms  N=${E.N} M=${E.M} K=${E.K}`);
 const ids = (process.argv[3] || 'WX-DTN,DRN-PHU,DRN-CTG,DRN-CTC,TRF-CWF,TRF-GLN,PWR-PCE,EMS-02,HSP-WMR,HSP-DRH,HSP-REX').split(',');
 const pad = (s, n) => String(s).padStart(n);

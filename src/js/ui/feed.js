@@ -34,7 +34,7 @@
       if (!st || !size()) return;
       const t = (now - t0) / 1000;
       if (st.offline) return offline(t);
-      ({ traffic: traffic, drainage: drainage, pump: pump, power: power, hospital: hospital, ems: ems, weather: weather })[st.kind](t);
+      ({ traffic: traffic, drainage: drainage, pump: pump, power: power, hospital: hospital, ems: ems, weather: weather, telecom: telecom })[st.kind](t);
       // film grain + scanlines + vignette
       g.globalAlpha = 0.9; g.drawImage(grain, (t * 37) % 7 - 7, (t * 53) % 5 - 5, W + 14, H + 10); g.globalAlpha = 1;
       g.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = 0; y < H; y += 3) g.fillRect(0, y, W, 1);
@@ -206,6 +206,26 @@
       }
       g.stroke();
     }
+    // Network operations view: a grid of cell sites, mains or battery, battery left.
+    function telecom(t) {
+      const r = st.risk;
+      scadaBg();
+      labelR('NOC · SITE STATUS', 18);
+      const cols = 8, rows = 4, cw = (W - 28) / cols, ch = 30;
+      const onBatt = clamp((r - 0.25) / 0.35, 0, 1), down = clamp((r - 0.55) / 0.35, 0, 1);
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        const u = (y * cols + x) / (rows * cols);
+        const isDown = u < down * 0.9, isBatt = !isDown && u < onBatt;
+        const bx = 14 + x * cw, by = 28 + y * (ch + 6);
+        g.fillStyle = isDown ? '#e5484d' : isBatt ? '#ee8a2a' : '#2b8a62';
+        g.globalAlpha = isBatt && Math.sin(t * 3 + x + y) > 0.7 ? 0.65 : 1;
+        g.fillRect(bx, by, cw - 6, ch); g.globalAlpha = 1;
+        if (isBatt) { const left = clamp(1 - (r - 0.25) / 0.5 - u * 0.3, 0.05, 1); g.fillStyle = '#0b0d10'; g.fillRect(bx + 3, by + ch - 7, (cw - 12) * left, 3); }
+        g.fillStyle = '#0b0d10'; g.font = '600 9px ' + mono(); g.fillText('S' + (101 + y * cols + x), bx + 4, by + 13);
+      }
+      label(`ON BATTERY ${Math.round(onBatt * 100)}% · OFF AIR ${Math.round(down * 90)}%`, 14, H - 12);
+    }
+
     function scadaBg() {
       g.fillStyle = '#0b0e11'; g.fillRect(0, 0, W, H);
       g.strokeStyle = 'rgba(255,255,255,0.035)';

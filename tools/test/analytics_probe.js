@@ -1,25 +1,26 @@
 // Node probe: crisis registry and Cascade-R for each scenario, through the services layer.
-//   node tools/test/analytics_probe.js [scenario ...] [--t <hours>]
+//   node tools/test/analytics_probe.js [scenario ...] [--city nagpur] [--t <hours>]
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.resolve(__dirname, '../..');
 global.window = global;
-for (const f of ['src/js/data/geodata.js', 'src/js/core.js', 'src/js/engine/scenarios.js', 'src/js/engine/engine.js',
-  'src/js/engine/interventions.js', 'src/js/engine/analytics.js', 'src/js/site/services.js'])
+for (const f of ['src/js/data/geodata.js', 'src/js/data/geodata_nagpur.js', 'src/js/core.js', 'src/js/engine/scenarios.js', 'src/js/engine/engine.js',
+  'src/js/engine/interventions.js', 'src/js/engine/analytics.js', 'src/js/engine/population.js', 'src/js/site/services.js'])
   vm.runInThisContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { filename: f });
 
 const args = process.argv.slice(2);
-const ti = args.indexOf('--t');
-const tNow = ti >= 0 ? +args[ti + 1] : 34.5;
-const scens = args.filter((a, n) => !a.startsWith('--') && (ti < 0 || n !== ti + 1));
+const opt = (name) => { const n = args.indexOf(name); return n >= 0 ? args[n + 1] : null; };
+const city = opt('--city') || 'raleigh';
+const scens = args.filter((a, n) => !a.startsWith('--') && !(n > 0 && args[n - 1].startsWith('--')));
 const fmt = (x) => (x == null ? 'n/a' : x.toFixed(2));
 
-for (const sc of scens.length ? scens : ['tropical', 'flash', 'heat']) {
-  const e = TWIN.services.engine(sc), an = e.analytics, F = e.F, k = e.kOf(tNow);
-  if (TWIN.services.engine(sc) !== e) throw new Error('services did not reuse the engine');
+for (const sc of scens.length ? scens : TWIN.services.scenariosFor(city).map((s) => s.id)) {
+  const tNow = opt('--t') != null ? +opt('--t') : TWIN.scenarios[sc].liveNow || 34.5;
+  const e = TWIN.services.engine(city, sc), an = e.analytics, F = e.F, k = e.kOf(tNow);
+  if (TWIN.services.engine(city, sc) !== e) throw new Error('services did not reuse the engine');
   const cr = an.cascadeR(k);
   const fc = [6, 12, 24].map((h) => `+${h}h ${fmt(an.cascadeR(k, Math.min(e.K - 1, k + h / e.DT)).r)}`).join(' ');
   const cx = an.crossing(k);
-  console.log(`== ${sc} @T+${tNow}: Cascade-R ${fmt(cr.r)} (network ${fmt(cr.net)} / hazard ${fmt(cr.haz)}) · forecast ${fmt(null) === 'n/a' ? '' : ''}${fc} · crossing ${cx ? (cx.now ? 'now' : 'T+' + cx.t) : 'none'}`);
+  console.log(`== ${city}/${sc} @T+${tNow}: Cascade-R ${fmt(cr.r)} (network ${fmt(cr.net)} / hazard ${fmt(cr.haz)}) · forecast ${fc} · crossing ${cx ? (cx.now ? 'now' : 'T+' + cx.t) : 'none'}`);
   console.log('   by system:', Object.entries(cr.bySys).map(([g, s]) => `${g} ${fmt(s.net)}/${fmt(s.haz)}`).join(' · '));
   const cs = an.crises(k);
   for (const c of cs.list) {

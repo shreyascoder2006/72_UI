@@ -79,7 +79,11 @@ def main():
     index = {"tiles": {}, "fonts": {}, "bundles": {}}
     groups = {}
 
+    # About 3 MB per bundle. Nagpur (east of the meridian, x past half the world) gets its
+    # own bundles so a visitor to one city never downloads the other's tiles.
     def bundle_of(z, x):
+        if x >= 2 ** (z - 1):
+            return "tiles-nagpur-z10-13" if z < 14 else "tiles-nagpur-z14"
         if z < 14:
             return "tiles-z10-13"
         return "tiles-z14-" + ("a" if x <= 4610 else "b" if x <= 4612 else "c" if x <= 4614 else "d")

@@ -2,17 +2,21 @@
 (function (root) {
   const { stateOf, TYPES } = root.TWIN.core;
   const I = root.TWIN.icons.UI;
-  const ORDER = ['drainage', 'traffic', 'power', 'hospital', 'weather'];
+  const ORDER = ['drainage', 'traffic', 'power', 'telecom', 'hospital', 'weather'];
   const LAYERS = [
     { key: 'drainage', label: 'Drainage', sw: '#3f93d8' },
     { key: 'traffic', label: 'Traffic', sw: '#3fb27f' },
     { key: 'power', label: 'Power grid', sw: '#b39af0' },
+    { key: 'telecom', label: 'Telecom', sw: '#5fc8d6' },
     { key: 'hospital', label: 'Hospitals & EMS', sw: '#e5484d' },
     { key: 'weather', label: 'Weather radar', sw: '#c9be55' },
     { key: 'flows', label: 'Cascade flows', sw: '#f2575c' },
     { key: 'arcs', label: 'Dependency arcs', sw: '#79a7e3' },
     { key: 'buildings', label: '3D buildings', sw: '#4b525c' },
+    { key: 'population', label: 'Population (modeled)', sw: '#8f7bd6' },
+    { key: 'crises', label: 'Crisis footprints', sw: '#ee8a2a' },
   ];
+  const SYSTEMS = ['drainage', 'traffic', 'power', 'telecom', 'hospital'];
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function create(app) {
@@ -23,13 +27,15 @@
     document.getElementById('searchIco').innerHTML = I.search;
     document.getElementById('assetCount').textContent = F.length;
 
-    // Layers
-    $layers.innerHTML = LAYERS.map((l) => `
+    // Layers: a system's switch only appears when the city has that system.
+    const present = new Set(F.map((f) => f.type));
+    const layers = LAYERS.filter((l) => !SYSTEMS.includes(l.key) || present.has(l.key));
+    $layers.innerHTML = layers.map((l) => `
       <label class="sw"><input type="checkbox" id="ly-${l.key}" data-key="${l.key}" ${app.state.layers[l.key] ? 'checked' : ''}>
       <span class="sw-track"></span><span class="sw-swatch" style="background:${l.sw}"></span><span>${l.label}</span></label>`).join('');
     $layers.addEventListener('change', (e) => { const k = e.target.dataset.key; if (k) app.setLayer(k, e.target.checked); });
     document.getElementById('layersAll').addEventListener('click', () => {
-      for (const l of LAYERS) if (l.key !== 'arcs') { app.setLayer(l.key, true); document.getElementById('ly-' + l.key).checked = true; }
+      for (const l of layers) if (!['arcs', 'population', 'crises'].includes(l.key)) { app.setLayer(l.key, true); document.getElementById('ly-' + l.key).checked = true; }
     });
 
     // Asset list
@@ -37,7 +43,7 @@
     const rows = [];
     function buildList() {
       $assets.innerHTML = '';
-      for (const type of ORDER) {
+      for (const type of ORDER.filter((t) => present.has(t))) {
         const idx = F.map((f, i) => (f.type === type ? i : -1)).filter((i) => i >= 0)
           .sort((a, b) => F[a].tier - F[b].tier || F[a].name.localeCompare(F[b].name));
         const head = document.createElement('button');

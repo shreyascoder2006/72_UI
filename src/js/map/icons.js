@@ -9,6 +9,7 @@
     power: s('<path d="M9.2 1.6 3.8 9h4l-1 5.4L12.2 7h-4z"/>'),
     hospital: s('<rect x="2" y="2" width="12" height="12" rx="2.4"/><path d="M8 4.8v6.4M4.8 8h6.4"/>'),
     ems: s('<path d="M1.6 11.4V6.6h7.2v4.8M8.8 8h2.9l2.1 2v1.4"/><circle cx="4.4" cy="12" r="1.3"/><circle cx="11.4" cy="12" r="1.3"/><path d="M4.8 7.4v2.4M3.6 8.6H6"/>'),
+    telecom: s('<path d="M8 6.2 5.4 14.4M8 6.2l2.6 8.2M6.2 11.6h3.6"/><circle cx="8" cy="5" r="1.2" fill="currentColor"/><path d="M5 2.6a4.2 4.2 0 0 0 0 4.8M11 2.6a4.2 4.2 0 0 1 0 4.8"/>'),
     weather: s('<path d="M4.6 9.6a3 3 0 1 1 .7-5.9 3.6 3.6 0 0 1 6.9 1.3 2.3 2.3 0 0 1-.4 4.6z"/><path d="M5.6 12.2l-.7 1.6M8.6 12.2l-.7 1.6M11.6 12.2l-.7 1.6"/>'),
   };
   function forFacility(f) {
@@ -16,6 +17,7 @@
     if (f.type === 'traffic') return f.subtype === 'Interchange' ? FAC.interchange : FAC.signal;
     if (f.type === 'power') return FAC.power;
     if (f.type === 'hospital') return f.subtype === 'EMS station' ? FAC.ems : FAC.hospital;
+    if (f.type === 'telecom') return FAC.telecom;
     return FAC.weather;
   }
   const UI = {

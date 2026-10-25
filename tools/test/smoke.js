@@ -1,8 +1,11 @@
 // Headless smoke test: load the twin, exercise the main interactions, save screenshots.
 //   node tools/test/smoke.js <url> <outdir>
 const { chromium } = require('playwright');
+// The bare URL opens the overview of the default city; these checks are about Raleigh's
+// twin (pass a URL with a hash for another page or city).
+const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
 (async () => {
-  const url = process.argv[2] || 'http://127.0.0.1:8765/index.html';
+  const url = twinUrl(process.argv[2] || 'http://127.0.0.1:8765/index.html');
   const out = process.argv[3] || '.';
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'], proxy });

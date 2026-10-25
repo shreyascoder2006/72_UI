@@ -2,8 +2,11 @@
 //   node tools/test/heroes.js <url> <outdir> [name ...]
 // Also scrubs the clock to show the daylight cycle on the first facility.
 const { chromium } = require('playwright');
+// The bare URL opens the overview of the default city; these checks are about Raleigh's
+// twin (pass a URL with a hash for another page or city).
+const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
 (async () => {
-  const url = process.argv[2] || 'http://127.0.0.1:8765/index.html';
+  const url = twinUrl(process.argv[2] || 'http://127.0.0.1:8765/index.html');
   const out = process.argv[3] || '.';
   const names = process.argv.slice(4);
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
@@ -23,14 +26,14 @@ const { chromium } = require('playwright');
   const list = names.length ? names : ['Duke Raleigh Hospital', 'Wake County EMS Station 2', 'Lake Boone Pumping Station', 'Warehouse District Substation', 'Capital Blvd at Peace St', 'Weather Station, Nash Square'];
   let first = true;
   for (const name of list) {
-    const i = await page.evaluate((n) => TWIN_GEO.facilities.findIndex((f) => f.name.includes(n)), name);
+    const i = await page.evaluate((n) => TWIN.app.geo.facilities.findIndex((f) => f.name.includes(n)), name);
     if (i < 0) { console.log('not found:', name); continue; }
     const t0 = Date.now();
     await page.evaluate((k) => TWIN.app.select(k, { fly: true }), i);
     await until((k) => TWIN.app.heroes.active === k, i, 60000).catch(() => console.log('hero not active:', name));
     await page.waitForTimeout(1500);
     await idle();
-    const f = await page.evaluate((k) => { const f = TWIN_GEO.facilities[k]; return { name: f.name, type: f.type, subtype: f.subtype, model: TWIN.heroes.MODEL_OF(f), zoom: TWIN.app.map.getZoom().toFixed(2) }; }, i);
+    const f = await page.evaluate((k) => { const f = TWIN.app.geo.facilities[k]; return { name: f.name, type: f.type, subtype: f.subtype, model: TWIN.heroes.MODEL_OF(f), zoom: TWIN.app.map.getZoom().toFixed(2) }; }, i);
     console.log(JSON.stringify(f), Date.now() - t0, 'ms');
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     await page.screenshot({ path: `${out}/hero-${slug}.png` });

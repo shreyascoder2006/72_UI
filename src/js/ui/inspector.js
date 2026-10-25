@@ -14,6 +14,7 @@
       case 'power': return { capK: 'Transformer load', cap: clamp(0.38 + 0.72 * r, 0, 1.25), readK: 'Bus voltage', read: (f.voltage || '').split(/[ /]/)[0] || '—', unit: f.voltage ? 'kV' : '' };
       case 'hospital': return { capK: 'Bed occupancy', cap: clamp(0.58 + 0.46 * r, 0, 1.08), readK: 'ED wait', read: Math.round(25 + 260 * Math.max(0, r - 0.3)), unit: 'min' };
       case 'ems': return { capK: 'Units committed', cap: clamp(0.22 + 0.85 * r, 0, 1), readK: 'Response', read: (6.5 + 11 * r).toFixed(1), unit: 'min' };
+      case 'telecom': return { capK: 'Battery hold-up used', cap: clamp((r - 0.18) / 0.7, 0, 1.1), readK: 'Sites on air', read: Math.round(100 * (1 - 0.92 * clamp((r - 0.3) / 0.6, 0, 1))), unit: '%' };
       default: return { capK: 'Rain rate', cap: clamp(rain / 30, 0, 1), readK: 'Hazard index', read: Math.round(r * 100), unit: '' };
     }
   }
@@ -31,8 +32,8 @@
           <div class="insp-top"><div><span class="chip-id">${esc(f.id)}</span><span class="chip-type">${esc(f.subtype)}</span></div>
             <button class="icon-btn" id="inspClose" aria-label="Close inspector">${I.UI.close}</button></div>
           <h2 class="insp-name">${esc(f.name)}</h2>
-          <div class="insp-loc">${esc(f.district)}${f.address ? ' · ' + esc(f.address) : ''} · Raleigh, NC</div>
-          <div class="insp-coord">${f.lngLat[1].toFixed(5)}° N, ${Math.abs(f.lngLat[0]).toFixed(5)}° W · ${esc(f.source)}</div>
+          <div class="insp-loc">${esc(f.district)}${f.address ? ' · ' + esc(f.address) : ''} · ${esc(app.geo.city)}, ${esc(app.geo.region)}</div>
+          <div class="insp-coord">${Math.abs(f.lngLat[1]).toFixed(5)}° ${f.lngLat[1] >= 0 ? 'N' : 'S'}, ${Math.abs(f.lngLat[0]).toFixed(5)}° ${f.lngLat[0] >= 0 ? 'E' : 'W'} · ${esc(f.source)}${f.people ? ` · ~${Math.round(f.people / 1000)}k residents within 1.2 km (modeled)` : ''}</div>
         </div>
         <div class="insp-body scroll">
           <div class="feed" title="Illustrative rendering of the twin's modeled state at this facility. It is not a camera or SCADA feed."><canvas id="feedCanvas"></canvas><span class="feed-tag" id="feedTag"><i></i>${esc(f.sensor)} · SIM</span><span class="feed-ts" id="feedTs"></span></div>
@@ -83,8 +84,8 @@
       const tag = el.querySelector('#feedTag');
       tag.classList.toggle('off', offline);
       tag.lastChild.textContent = `${f.sensor} · ${offline ? 'OFFLINE' : 'SIM'}`;
-      const ck = C.clockAt(app.geo.t0, v.forecastView ? v.tNow : v.t);
-      el.querySelector('#feedTs').textContent = `${ck.day} ${ck.time} EDT`;
+      const ck = C.clockAt(app.engine.t0, v.forecastView ? v.tNow : v.t);
+      el.querySelector('#feedTs').textContent = `${ck.day} ${ck.time} ${C.tzLabel()}`;
 
       // primary
       root.TWIN.charts.ring(el.querySelector('#ringCanvas'), r, v.forecastView ? 0 : sd);
@@ -186,7 +187,7 @@
         const edge = ex.drivers.find((d) => d.kind === 'edge' && d.value > 0.03 && !seen.has(d.from));
         const hazard = ex.drivers.find((d) => d.kind === 'hazard');
         if (!edge || (hazard && hazard.value > edge.value * 1.2)) {
-          if (hazard && hazard.value > 0.03) out.unshift({ i: null, label: { drainage: 'Rainfall', pump: 'Rainfall', traffic: 'Rain', power: 'Heat / wind', hospital: 'Heat', ems: 'Storm calls', weather: 'Storm' }[e.kinds[cur_]] });
+          if (hazard && hazard.value > 0.03) out.unshift({ i: null, label: (e.scen.hazardLabel && e.scen.hazardLabel[e.kinds[cur_]]) || { drainage: 'Rainfall', pump: 'Rainfall', traffic: 'Rain', power: 'Heat / wind', hospital: 'Heat', ems: 'Storm calls', weather: 'Storm' }[e.kinds[cur_]] });
           break;
         }
         out.unshift({ i: edge.from });

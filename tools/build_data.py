@@ -1,9 +1,11 @@
-"""Build src/js/data/geodata.js from the baked OpenMapTiles tiles and the OSM facility pull.
+"""Build a city's twin data from the baked OpenMapTiles tiles and the OSM facility pull.
 
-    python3 tools/build_data.py
+    python3 tools/build_data.py                 # Raleigh → src/js/data/geodata.js
+    python3 tools/build_data.py --city nagpur   # Nagpur  → src/js/data/geodata_nagpur.js
 
-Outputs one classic script that sets window.TWIN_GEO. Everything geometric in it is
-derived from real OpenStreetMap data:
+Each output is one classic script that sets window.TWIN_GEOS[<city>]. The city's
+knowledge base is tools/spec.py (Raleigh) or tools/spec_<city>.py. Everything geometric
+in it is derived from real OpenStreetMap data:
   * facility points (OSM features, or exact creek x road / road x road crossings)
   * dependency routes, found with Dijkstra on the street graph or down the waterway graph
   * the monitored corridor network and drainage network, chunked for per-segment styling
@@ -21,13 +23,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+import importlib  # noqa: E402
+
 import mvt  # noqa: E402
-import spec  # noqa: E402
+
+CITY_ID = sys.argv[sys.argv.index("--city") + 1] if "--city" in sys.argv else "raleigh"
+spec = importlib.import_module("spec" if CITY_ID == "raleigh" else f"spec_{CITY_ID}")
 
 TILES = os.path.join(ROOT, "data", "tiles", "14")
-OSM_FACILITIES = os.path.join(HERE, "osm", "facilities_raw.json")
-OUT = os.path.join(ROOT, "src", "js", "data", "geodata.js")
-SITES = os.path.join(HERE, "osm", "facility_sites.json")  # written by enrich_buildings.py
+OSM_FACILITIES = os.path.join(HERE, "osm", getattr(spec, "OSM_FILE", "facilities_raw.json"))
+OUT = os.path.join(ROOT, "src", "js", "data", "geodata.js" if CITY_ID == "raleigh" else f"geodata_{CITY_ID}.js")
+# Written by enrich_buildings.py
+SITES = os.path.join(HERE, "osm", "facility_sites.json" if CITY_ID == "raleigh" else f"facility_sites_{CITY_ID}.json")
+RIVER_ALIASES = getattr(spec, "RIVER_ALIASES", {})
 
 LON0, LAT0 = spec.CENTER
 KX = 111320.0 * math.cos(math.radians(LAT0))
@@ -108,13 +116,23 @@ def r5(line):
 
 
 # ── Tile decoding ────────────────────────────────────────────────────────────
+def tile_xy(lon, lat, z=14):
+    n = 2 ** z
+    return int((lon + 180) / 360 * n), int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+
+
 def load_features():
     feats = defaultdict(list)
+    w, s, e, n = spec.EXTENT
+    x0, y0 = tile_xy(w, n)
+    x1, y1 = tile_xy(e, s)
     for path in sorted(glob.glob(os.path.join(TILES, "*", "*.pbf"))):
         x = int(path.split(os.sep)[-2])
         y = int(os.path.basename(path)[:-4])
+        if not (x0 <= x <= x1 and y0 <= y <= y1):
+            continue  # another city's tiles share the folder
         layers = mvt.decode(open(path, "rb").read(), 14, x, y,
-                            layers={"waterway", "transportation", "transportation_name", "water"})
+                            layers={"waterway", "transportation", "transportation_name", "water", "building"})
         for k, v in layers.items():
             feats[k].extend(v)
     return feats
@@ -125,7 +143,7 @@ def road_name(p):
         return "I-440"
     if p.get("class") == "motorway" and p.get("ref") == "40":
         return "I-40"
-    return p.get("name")
+    return p.get("name:en") or p.get("name_en") or p.get("name")
 
 
 # ── Graph with snapped nodes ─────────────────────────────────────────────────
@@ -291,6 +309,71 @@ def site_records(facilities):
     return out
 
 
+POPULATION = {"raleigh": 480_000, "nagpur": 2_950_000}
+POP_CELL = 450.0  # metres
+
+
+def population_grid(feats, facilities):
+    """Estimate residents per 450 m cell from built-up intensity in the tiles:
+    street length (minor streets weigh most: that is where people live), building
+    footprint area, minus open water. Scaled to the city's population. A modeled
+    density surface, used for exposure and the 3D massing layer.
+    (Ported from vizsh/72_hours_CASCADE tools/build_data.py with the owner's permission.)"""
+    w, s_, e, n = spec.EXTENT
+    (x0, y0), (x1, y1) = to_m((w, s_)), to_m((e, n))
+    nx, ny = int((x1 - x0) // POP_CELL) + 1, int((y1 - y0) // POP_CELL) + 1
+    score = [[0.0] * ny for _ in range(nx)]
+
+    def cell(p):
+        x, y = to_m(p)
+        i, j = int((x - x0) // POP_CELL), int((y - y0) // POP_CELL)
+        return (i, j) if 0 <= i < nx and 0 <= j < ny else None
+
+    road_w = {"minor": 1.0, "service": 0.5, "tertiary": 0.8, "secondary": 0.6, "primary": 0.5, "trunk": 0.25, "motorway": 0.1}
+    for f in feats["transportation"]:
+        wgt = road_w.get(f["props"].get("class"))
+        if f["type"] != 2 or wgt is None:
+            continue
+        for line in f["coords"]:
+            for a, b in zip(line, line[1:]):
+                c = cell(a)
+                if c:
+                    score[c[0]][c[1]] += wgt * dist(a, b)
+    for f in feats.get("building", []):
+        if f["type"] != 3:
+            continue
+        for ring in f["coords"]:
+            if len(ring) > 3:
+                c = cell(ring[0])
+                if c:
+                    score[c[0]][c[1]] += 0.06 * polygon_area_m2(ring)
+    water = set()
+    for f in feats["water"]:
+        if f["type"] == 3:
+            for ring in f["coords"]:
+                if len(ring) > 3 and polygon_area_m2(ring) > 60000:
+                    for p in ring[:: max(1, len(ring) // 12)]:
+                        c = cell(p)
+                        if c:
+                            water.add(c)
+    total = sum(score[i][j] for i in range(nx) for j in range(ny) if (i, j) not in water) or 1.0
+    target = POPULATION.get(CITY_ID, 1_000_000)
+    cells = []
+    for i in range(nx):
+        for j in range(ny):
+            if (i, j) in water or score[i][j] <= 0:
+                continue
+            p = score[i][j] / total * target
+            if p < 150:
+                continue
+            ll = to_ll((x0 + (i + 0.5) * POP_CELL, y0 + (j + 0.5) * POP_CELL))
+            cells.append([ll[0], ll[1], int(round(p))])
+    # people living near each facility (within 1.2 km), for consequence weighting
+    for f in facilities:
+        f["people"] = int(sum(c[2] for c in cells if dist((c[0], c[1]), f["lngLat"]) < 1200))
+    return dict(cell=POP_CELL, cells=cells, source="Modeled from OSM street and building density, scaled to city population")
+
+
 def main():
     print("decoding tiles…")
     feats = load_features()
@@ -299,7 +382,8 @@ def main():
     creeks = defaultdict(list)
     for f in feats["waterway"]:
         if f["type"] == 2 and f["props"].get("name"):
-            creeks[f["props"]["name"]].extend(f["coords"])
+            nm = f["props"]["name"]
+            creeks[RIVER_ALIASES.get(nm, nm)].extend(f["coords"])
     roads = defaultdict(list)
     for f in feats["transportation_name"]:
         if f["type"] == 2:
@@ -434,6 +518,7 @@ def main():
         if f["type"] != 2:
             continue
         nm = f["props"].get("name")
+        nm = RIVER_ALIASES.get(nm, nm)
         cls = f["props"].get("class")
         if not nm and cls not in ("stream", "river", "canal"):
             continue
@@ -487,9 +572,17 @@ def main():
         s["fac"] = near if dist(tuple(s["lngLat"]), facilities[near]["lngLat"]) < 30 else None
     print(f"substations: {len(substations)}")
 
+    # ── Population grid: built-up intensity from roads, buildings and water mask ──
+    pop = population_grid(feats, facilities)
+    print(f"population cells: {len(pop['cells'])} (total {sum(c[2] for c in pop['cells']):,})")
+
     out = dict(
-        city="Raleigh",
-        region="North Carolina",
+        id=CITY_ID,
+        city=spec.CITY,
+        region=spec.REGION,
+        tz=spec.TZ,
+        tzLabel=spec.TZ_LABEL,
+        overview=spec.OVERVIEW,
         extent=spec.EXTENT,
         center=spec.CENTER,
         t0=spec.T0_ISO,
@@ -501,10 +594,14 @@ def main():
         substations=substations,
         districts=[dict(name=n, lngLat=[lon, lat]) for n, lat, lon in spec.DISTRICTS],
         sites=site_records(facilities),
+        population=pop,
+        faults=getattr(spec, "FAULTS", None),
+        falseReports=getattr(spec, "FALSE_REPORTS", None),
         attribution="© OpenStreetMap contributors · © OpenMapTiles · OpenFreeMap",
     )
     js = ("/* Generated by tools/build_data.py from OpenStreetMap data (ODbL). Do not edit by hand. */\n"
-          "window.TWIN_GEO = " + json.dumps(out, separators=(",", ":"), ensure_ascii=False) + ";\n")
+          "(window.TWIN_GEOS = window.TWIN_GEOS || {})[" + json.dumps(CITY_ID) + "] = "
+          + json.dumps(out, separators=(",", ":"), ensure_ascii=False) + ";\n")
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as fh:
         fh.write(js)

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Raleigh Digital Twin</title>
-<meta name="description" content="Urban digital twin of Raleigh, NC: real OpenStreetMap city model with a cascade-intelligence layer that predicts how a flood propagates through drainage, roads, power and hospitals up to 72 hours ahead.">
+<title>Cascade Intelligence · urban digital twin</title>
+<meta name="description" content="Urban digital twins of Raleigh, NC and Nagpur, Maharashtra: real OpenStreetMap city models with a cascade-intelligence layer that simulates how floods, grid faults, toxic releases and crowds propagate through drainage, roads, power, telecom and hospitals up to 72 hours ahead.">
 <!--BUILD:HEAD-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="src/css/layout.css">
 <link rel="stylesheet" href="src/css/panels.css">
 <link rel="stylesheet" href="src/css/map.css">
+<link rel="stylesheet" href="src/css/pages.css">
 <!--/BUILD:HEAD-->
 </head>
 <body>
@@ -28,9 +29,10 @@
         <path d="M8 17V11.5l3-1.7V17M12.6 17V8.6l3-1.7V17M17.2 17v-5.2l2.2-1.2" fill="none" stroke="#e4e8ee" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
       <div class="brand-text">
-        <div class="brand-title">Raleigh Digital Twin</div>
-        <div class="brand-sub">Cascade Intelligence · Wake County, NC</div>
+        <div class="brand-title" id="brandTitle">Digital Twin</div>
+        <div class="brand-sub" id="brandSub">Cascade Intelligence</div>
       </div>
+      <nav class="site-tabs twin-tabs" id="twinTabs" aria-label="Pages"></nav>
     </div>
 
     <div class="top-center">
@@ -52,7 +54,7 @@
     </div>
   </header>
 
-  <div id="map" aria-label="3D map of Raleigh"></div>
+  <div id="map" aria-label="3D city map"></div>
 
   <div class="map-ui">
     <nav class="crumbs glass" id="crumbs" aria-label="Location"></nav>
@@ -60,6 +62,7 @@
       <button class="btn glass" id="btnGraph" aria-pressed="false"></button>
       <button class="btn glass" id="btnPlan" aria-pressed="false"></button>
       <button class="btn glass" id="btnValid" aria-pressed="false"></button>
+      <label class="select city-sel"><select id="citySel" class="glass" aria-label="City"></select><span id="cityIco"></span></label>
       <label class="select"><select id="scenario" class="glass" aria-label="Scenario"></select><span id="scenIco"></span></label>
     </div>
     <div class="cascade-strip glass" id="strip" aria-label="Cascade stages"></div>
@@ -83,6 +86,7 @@
 
   <aside class="left glass" aria-label="Assets, layers and alerts">
     <div class="left-head">
+      <nav class="site-tabs drawer-tabs" id="drawerTabs" aria-label="Pages"></nav>
       <div class="count-line">
         <h2><span id="assetCount">44</span> Monitored assets</h2>
         <span class="caps" id="assetCrit"></span>
@@ -127,23 +131,33 @@
   </footer>
 
   <div class="loading" id="loading">
-    <div class="loading-title">Raleigh Digital Twin</div>
+    <div class="loading-title" id="loadingTitle">Digital Twin</div>
     <div class="loading-bar"><i></i></div>
     <div class="loading-step" id="loadingStep">Loading city model…</div>
   </div>
 </div>
+
+<!-- Pages other than the twin (overview, crises): site/pages.js and src/js/views/. -->
+<div class="site" id="site" hidden>
+  <header class="site-top" id="siteTop"></header>
+  <main class="page scroll" id="page" tabindex="-1"></main>
+</div>
+<div class="site-toast glass" id="siteToast" role="status" hidden></div>
 
 <!--BUILD:SCRIPTS-->
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
 <script>window.maplibregl || document.write('<script src="src/vendor/maplibre-gl-4.7.1.js"><\/script>');</script>
 <script src="src/js/data/geodata.js"></script>
+<script src="src/js/data/geodata_nagpur.js"></script>
 <script src="src/js/core.js"></script>
 <script src="src/js/engine/scenarios.js"></script>
 <script src="src/js/engine/engine.js"></script>
 <script src="src/js/engine/interventions.js"></script>
 <script src="src/js/engine/analytics.js"></script>
+<script src="src/js/engine/population.js"></script>
 <script src="src/js/site/services.js"></script>
+<script src="src/js/site/pages.js"></script>
 <script src="src/js/map/icons.js"></script>
 <script src="src/js/map/geom.js"></script>
 <script src="src/js/map/style.js"></script>
@@ -164,6 +178,8 @@
 <script src="src/js/site/store.js"></script>
 <script src="src/js/site/router.js"></script>
 <script src="src/js/views/twin.js"></script>
+<script src="src/js/views/crises.js"></script>
+<script src="src/js/views/overview.js"></script>
 <!--/BUILD:SCRIPTS-->
 </body>
 </html>
