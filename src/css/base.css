@@ -1,0 +1,42 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 var(--fs-md) / 1.4 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+[hidden] { display: none !important; }
+
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.caps { text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); }
+.muted { color: var(--text-2); }
+.faint { color: var(--text-3); }
+
+/* Thin scrollbars inside panels */
+.scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+.scroll::-webkit-scrollbar { width: 6px; }
+.scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+
+/* Risk state helpers */
+.r-normal { --rc: var(--ok); --rd: var(--ok-dim); }
+.r-watch { --rc: var(--watch); --rd: var(--watch-dim); }
+.r-high { --rc: var(--high); --rd: var(--high-dim); }
+.r-critical { --rc: var(--crit); --rd: var(--crit-dim); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rc, var(--text-4)); flex: none; }
+.r-critical .dot, .dot.r-critical { box-shadow: 0 0 0 3px var(--crit-dim), 0 0 8px rgba(229, 72, 77, 0.55); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 20px; padding: 0 8px; border-radius: 10px;
+  font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--rc, var(--text-2)); background: var(--rd, var(--well)); border: 1px solid color-mix(in srgb, var(--rc, #888) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

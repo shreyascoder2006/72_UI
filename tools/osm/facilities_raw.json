@@ -1,0 +1,1123 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.4 2390de5a",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-25T07:15:51Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 367908780,
+  "lat": 35.8089897,
+  "lon": -78.6558372,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "121",
+    "gnis:feature_id": "2454442",
+    "name": "Raleigh Fire Station Number 6",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908784,
+  "lat": 35.7883100,
+  "lon": -78.6617700,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "124",
+    "name": "Raleigh Fire Station Number 5",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908788,
+  "lat": 35.7861300,
+  "lon": -78.7086400,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "140",
+    "gnis:feature_id": "2454444",
+    "name": "Raleigh Fire Station Number 8",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908792,
+  "lat": 35.7926100,
+  "lon": -78.6127700,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "90",
+    "gnis:feature_id": "2454443",
+    "name": "Raleigh Fire Station Number 7",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908861,
+  "lat": 35.7775914,
+  "lon": -78.6438255,
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "101",
+    "gnis:feature_id": "2454428",
+    "name": "Raleigh Fire Station Number 1",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908865,
+  "lat": 35.7416900,
+  "lon": -78.6130700,
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "2711",
+    "addr:postcode": "27610",
+    "addr:state": "NC",
+    "addr:street": "Sanderford Road",
+    "amenity": "fire_station",
+    "ele": "92",
+    "gnis:feature_id": "2454429",
+    "name": "Raleigh Fire Station Number 10",
+    "phone": "+19199966115",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908878,
+  "lat": 35.8668300,
+  "lon": -78.6078931,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "113",
+    "gnis:feature_id": "2454432",
+    "name": "Raleigh Fire Station Number 15",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908882,
+  "lat": 35.8526890,
+  "lon": -78.6732050,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "100",
+    "gnis:feature_id": "2454433",
+    "name": "Raleigh Fire Station Number 16",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908890,
+  "lat": 35.8564420,
+  "lon": -78.5710040,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "99",
+    "gnis:feature_id": "2454435",
+    "name": "Raleigh Fire Station Number 19",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908908,
+  "lat": 35.7794800,
+  "lon": -78.6319600,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "103",
+    "name": "Raleigh Fire Station Number 3",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 367908912,
+  "lat": 35.8824400,
+  "lon": -78.6483940,
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "125",
+    "gnis:feature_id": "2454440",
+    "name": "Raleigh Fire Station Number 4",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "node",
+  "id": 1821019871,
+  "lat": 35.8060378,
+  "lon": -78.7104127,
+  "tags": {
+    "amenity": "fire_station"
+  }
+},
+{
+  "type": "node",
+  "id": 3889578680,
+  "lat": 35.8413680,
+  "lon": -78.5720873,
+  "tags": {
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "node",
+  "id": 8526592369,
+  "lat": 35.8196992,
+  "lon": -78.6006041,
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housename": "Fire Station 11",
+    "addr:housenumber": "2925",
+    "addr:postcode": "27604",
+    "addr:street": "Glenridge Drive",
+    "amenity": "fire_station",
+    "name": "Fire Station 11",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "node",
+  "id": 12228380535,
+  "lat": 35.9030807,
+  "lon": -78.5818163,
+  "tags": {
+    "addr:state": "NC",
+    "addr:street": "Durant Road",
+    "amenity": "fire_station",
+    "name": "Raleigh Fire Station 22"
+  }
+},
+{
+  "type": "node",
+  "id": 12900223721,
+  "lat": 35.8411548,
+  "lon": -78.5413831,
+  "tags": {
+    "amenity": "fire_station",
+    "name": "Buffaloe Road Fire Station",
+    "operator": "City of Raleigh"
+  }
+},
+{
+  "type": "way",
+  "id": 32249209,
+  "center": {
+    "lat": 35.7583475,
+    "lon": -78.7452747
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 32249773,
+  "center": {
+    "lat": 35.8179048,
+    "lon": -78.7076752
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 32447285,
+  "center": {
+    "lat": 35.7909230,
+    "lon": -78.6824562
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "transmission",
+    "voltage": "230000;115000"
+  }
+},
+{
+  "type": "way",
+  "id": 32505549,
+  "center": {
+    "lat": 35.8290377,
+    "lon": -78.6941948
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 32505640,
+  "center": {
+    "lat": 35.8726900,
+    "lon": -78.7000575
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 47681608,
+  "center": {
+    "lat": 35.8412479,
+    "lon": -78.6432561
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "building": "yes",
+    "name": "Raleigh Fire Station 9",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47729976,
+  "center": {
+    "lat": 35.7780092,
+    "lon": -78.5865864
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "2910",
+    "addr:postcode": "27610",
+    "addr:state": "NC",
+    "addr:street": "Kidd Road",
+    "building": "yes",
+    "building:use": "residential",
+    "emergency": "ambulance_station",
+    "name": "Wake County EMS Station 7",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47758952,
+  "center": {
+    "lat": 35.8594740,
+    "lon": -78.7117161
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "4601",
+    "addr:postcode": "27612",
+    "addr:state": "NC",
+    "addr:street": "Pleasant Valley Road",
+    "amenity": "fire_station",
+    "building": "yes",
+    "building:use": "commercial",
+    "ele": "128",
+    "gnis:feature_id": "2454434",
+    "name": "Raleigh Fire Station Number 17",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47760096,
+  "center": {
+    "lat": 35.7794795,
+    "lon": -78.6319821
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "13",
+    "addr:postcode": "27601",
+    "addr:state": "NC",
+    "addr:street": "South East Street",
+    "amenity": "fire_station",
+    "building": "yes",
+    "building:use": "government",
+    "name": "Raleigh Fire Station 3",
+    "operator": "The City of Raleigh, NC"
+  }
+},
+{
+  "type": "way",
+  "id": 47880745,
+  "center": {
+    "lat": 35.8092801,
+    "lon": -78.6351692
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "2020",
+    "addr:postcode": "27608",
+    "addr:state": "NC",
+    "addr:street": "Noble Road",
+    "building": "yes",
+    "building:use": "commercial",
+    "emergency": "ambulance_station",
+    "name": "Wake County EMS Station 2",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47918561,
+  "center": {
+    "lat": 35.8412024,
+    "lon": -78.5753347
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "4415",
+    "addr:postcode": "27604",
+    "addr:state": "NC",
+    "addr:street": "Saint James Church Road",
+    "amenity": "fire_station",
+    "building": "yes",
+    "building:use": "commercial",
+    "name": "Wake New Hope Fire Station 1",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47933404,
+  "center": {
+    "lat": 35.8158204,
+    "lon": -78.7017191
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "building:use": "commercial",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 47948567,
+  "center": {
+    "lat": 35.8537387,
+    "lon": -78.6427822
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:country": "US",
+    "addr:housenumber": "5305",
+    "addr:state": "NC",
+    "addr:street": "Six Forks Road",
+    "building": "yes",
+    "building:use": "commercial",
+    "emergency": "ambulance_station",
+    "source": "WakeGIS"
+  }
+},
+{
+  "type": "way",
+  "id": 152342152,
+  "center": {
+    "lat": 35.8353615,
+    "lon": -78.6507128
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 159559232,
+  "center": {
+    "lat": 35.7805476,
+    "lon": -78.5544429
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "transmission",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 159559334,
+  "center": {
+    "lat": 35.7300327,
+    "lon": -78.5696446
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 167272846,
+  "center": {
+    "lat": 35.9086560,
+    "lon": -78.6542379
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 167272852,
+  "center": {
+    "lat": 35.9011732,
+    "lon": -78.6238629
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 167284407,
+  "center": {
+    "lat": 35.8282728,
+    "lon": -78.5617812
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 167284411,
+  "center": {
+    "lat": 35.8867181,
+    "lon": -78.5620693
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 167284413,
+  "center": {
+    "lat": 35.8595909,
+    "lon": -78.5712377
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 170827920,
+  "center": {
+    "lat": 35.8140282,
+    "lon": -78.7414300
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 195979489,
+  "center": {
+    "lat": 35.8286051,
+    "lon": -78.6179388
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "3400",
+    "addr:postcode": "27609",
+    "addr:street": "Wake Forest Road",
+    "amenity": "hospital",
+    "beds": "186",
+    "emergency": "yes",
+    "healthcare": "hospital",
+    "name": "Duke Raleigh Hospital",
+    "opening_hours": "24/7",
+    "operator": "Duke University Health System",
+    "operator:wikidata": "Q5312891",
+    "phone": "+1 919 954 3000",
+    "website": "https://www.dukehealth.org/hospitals/duke-raleigh-hospital/home",
+    "wikidata": "Q50036571"
+  }
+},
+{
+  "type": "way",
+  "id": 198163515,
+  "center": {
+    "lat": 35.7830145,
+    "lon": -78.5840223
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "3019",
+    "addr:postcode": "27610",
+    "addr:street": "Falstaff Road",
+    "amenity": "hospital",
+    "emergency": "no",
+    "healthcare": "hospital",
+    "healthcare:speciality": "psychiatry",
+    "name": "Holly Hill Hospital",
+    "phone": "+1 919 250 7000",
+    "website": "https://hollyhillhospital.com/"
+  }
+},
+{
+  "type": "way",
+  "id": 198168608,
+  "center": {
+    "lat": 35.7825911,
+    "lon": -78.5881280
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "3000",
+    "addr:postcode": "27610",
+    "addr:street": "New Bern Avenue",
+    "amenity": "hospital",
+    "beds": "628",
+    "emergency": "yes",
+    "healthcare": "hospital",
+    "name": "WakeMed Health & Hospitals: Raleigh Campus",
+    "opening_hours": "24/7",
+    "operator": "WakeMed",
+    "operator:wikidata": "Q7960892",
+    "phone": "+1 919 350 8000",
+    "website": "https://www.wakemed.org/location/raleigh-campus"
+  }
+},
+{
+  "type": "way",
+  "id": 237101553,
+  "center": {
+    "lat": 35.7690595,
+    "lon": -78.6322227
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 237101570,
+  "center": {
+    "lat": 35.7644836,
+    "lon": -78.5984276
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 237172579,
+  "center": {
+    "lat": 35.7755393,
+    "lon": -78.6783304
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 237172584,
+  "center": {
+    "lat": 35.7586669,
+    "lon": -78.6454408
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 237172587,
+  "center": {
+    "lat": 35.7887586,
+    "lon": -78.6818283
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 237465920,
+  "center": {
+    "lat": 35.8013059,
+    "lon": -78.7037684
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 239265210,
+  "center": {
+    "lat": 35.7783979,
+    "lon": -78.7411270
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "230000"
+  }
+},
+{
+  "type": "way",
+  "id": 251106132,
+  "center": {
+    "lat": 35.8580193,
+    "lon": -78.6323639
+  },
+  "tags": {
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 306626791,
+  "center": {
+    "lat": 35.8959506,
+    "lon": -78.6502327
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "8533",
+    "addr:postcode": "27615",
+    "addr:state": "NC",
+    "addr:street": "Six Forks Road",
+    "building": "yes",
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 318162472,
+  "center": {
+    "lat": 35.7735480,
+    "lon": -78.6448860
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 369943173,
+  "center": {
+    "lat": 35.7970124,
+    "lon": -78.7072779
+  },
+  "tags": {
+    "communication:mobile_phone": "yes",
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 374890122,
+  "center": {
+    "lat": 35.9091399,
+    "lon": -78.5978162
+  },
+  "tags": {
+    "addr:city": "Raleigh",
+    "addr:housenumber": "10000",
+    "addr:postcode": "27614",
+    "addr:street": "Falls of Neuse Road",
+    "amenity": "hospital",
+    "beds": "61",
+    "emergency": "yes",
+    "gnis:feature_id": "2455185",
+    "healthcare": "hospital",
+    "name": "WakeMed North Family Health & Women’s Hospital",
+    "opening_hours": "24/7",
+    "operator": "WakeMed",
+    "operator:wikidata": "Q7960892",
+    "phone": "+1 919 350 8000",
+    "website": "https://www.wakemed.org/location/north-hospital",
+    "wheelchair": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 429943221,
+  "center": {
+    "lat": 35.7477055,
+    "lon": -78.6917660
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 435685331,
+  "center": {
+    "lat": 35.9029472,
+    "lon": -78.7258296
+  },
+  "tags": {
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 461033100,
+  "center": {
+    "lat": 35.8271529,
+    "lon": -78.6084759
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 506581365,
+  "center": {
+    "lat": 35.7824719,
+    "lon": -78.6461071
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 582699428,
+  "center": {
+    "lat": 35.7920224,
+    "lon": -78.6643438
+  },
+  "tags": {
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 610050015,
+  "center": {
+    "lat": 35.8015369,
+    "lon": -78.7069743
+  },
+  "tags": {
+    "building": "pumping_station",
+    "man_made": "pumping_station"
+  }
+},
+{
+  "type": "way",
+  "id": 633944113,
+  "center": {
+    "lat": 35.7911227,
+    "lon": -78.6389039
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 634046000,
+  "center": {
+    "lat": 35.7451307,
+    "lon": -78.7392784
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "building": "yes",
+    "name": "Swift Creek"
+  }
+},
+{
+  "type": "way",
+  "id": 658496488,
+  "center": {
+    "lat": 35.7893256,
+    "lon": -78.7178150
+  },
+  "tags": {
+    "building": "water_tower",
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 691072706,
+  "center": {
+    "lat": 35.8942546,
+    "lon": -78.6808753
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "name": "Raleigh Fire Station 18"
+  }
+},
+{
+  "type": "way",
+  "id": 723814163,
+  "center": {
+    "lat": 35.7937425,
+    "lon": -78.5857405
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 1077807090,
+  "center": {
+    "lat": 35.9095304,
+    "lon": -78.7310184
+  },
+  "tags": {
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 1079783610,
+  "center": {
+    "lat": 35.8045046,
+    "lon": -78.6316419
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 1104145463,
+  "center": {
+    "lat": 35.8166664,
+    "lon": -78.5881225
+  },
+  "tags": {
+    "barrier": "fence",
+    "power": "substation",
+    "substation": "distribution",
+    "voltage": "115000"
+  }
+},
+{
+  "type": "way",
+  "id": 1206489369,
+  "center": {
+    "lat": 35.8135329,
+    "lon": -78.6999810
+  },
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "135",
+    "gnis:feature_id": "2454431",
+    "name": "Raleigh Fire Station Number 14",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "way",
+  "id": 1210888141,
+  "center": {
+    "lat": 35.8417732,
+    "lon": -78.5408660
+  },
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "72",
+    "gnis:feature_id": "2454438",
+    "name": "Raleigh Fire Station Number 27",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "way",
+  "id": 1211158662,
+  "center": {
+    "lat": 35.8110350,
+    "lon": -78.5566356
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "name": "Raleigh Fire Station 21"
+  }
+},
+{
+  "type": "way",
+  "id": 1211967511,
+  "center": {
+    "lat": 35.8818990,
+    "lon": -78.7089582
+  },
+  "tags": {
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 1230232595,
+  "center": {
+    "lat": 35.7690350,
+    "lon": -78.5798688
+  },
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "96",
+    "gnis:feature_id": "2454430",
+    "name": "Raleigh Fire Station Number 12",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "way",
+  "id": 1231283097,
+  "center": {
+    "lat": 35.7559287,
+    "lon": -78.6926312
+  },
+  "tags": {
+    "addr:state": "NC",
+    "amenity": "fire_station",
+    "ele": "126",
+    "gnis:feature_id": "2454436",
+    "name": "Raleigh Fire Station Number 20",
+    "source": "USGS Geonames"
+  }
+},
+{
+  "type": "way",
+  "id": 1237426483,
+  "center": {
+    "lat": 35.7672796,
+    "lon": -78.5631595
+  },
+  "tags": {
+    "amenity": "fire_station",
+    "name": "Raleigh Fire Station 12"
+  }
+},
+{
+  "type": "way",
+  "id": 1462705857,
+  "center": {
+    "lat": 35.9128360,
+    "lon": -78.6607643
+  },
+  "tags": {
+    "building": "yes",
+    "man_made": "water_tower"
+  }
+},
+{
+  "type": "way",
+  "id": 1492873206,
+  "center": {
+    "lat": 35.7818533,
+    "lon": -78.5868710
+  },
+  "tags": {
+    "power": "substation"
+  }
+}
+
+  ]
+}

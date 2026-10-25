@@ -1,0 +1,65 @@
+/* Design tokens.
+   Layout concept: a full-bleed 3D city with docked glass instruments: asset list and
+   alerts on the left, facility inspector on the right, a 72 h timeline below.
+   Deliberately a single dark look (control-room software); color is reserved for risk. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces: charcoal with a faint cool bias */
+  --bg: #090b0e;
+  --panel: rgba(12, 14, 17, 0.86);
+  --panel-solid: #0d0f12;
+  --panel-raised: rgba(20, 23, 28, 0.92);
+  --well: rgba(255, 255, 255, 0.025);
+  --line: rgba(220, 230, 245, 0.075);
+  --line-strong: rgba(220, 230, 245, 0.15);
+
+  /* Text */
+  --text: #e4e8ee;
+  --text-2: #a2abb6;
+  --text-3: #6a737e;
+  --text-4: #474e57;
+
+  /* Accent: steel blue for selection, focus, live data */
+  --accent: #79a7e3;
+  --accent-dim: rgba(121, 167, 227, 0.16);
+  --accent-line: rgba(121, 167, 227, 0.45);
+
+  /* Risk scale (shared with the map and canvas charts via core.js) */
+  --ok: #3fb27f;
+  --watch: #e2b93b;
+  --high: #ee8a2a;
+  --crit: #e5484d;
+  --ok-dim: rgba(63, 178, 127, 0.14);
+  --watch-dim: rgba(226, 185, 59, 0.14);
+  --high-dim: rgba(238, 138, 42, 0.15);
+  --crit-dim: rgba(229, 72, 77, 0.16);
+
+  /* Domain hues (layers, flows) */
+  --water: #4a95dc;
+  --power: #b39af0;
+  --chart-bar: #e98b2d;
+
+  /* Type */
+  --font-ui: "Barlow", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-cond: "Barlow Semi Condensed", "Barlow", "Arial Narrow", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --fs-xs: 10.5px;
+  --fs-sm: 11.5px;
+  --fs-md: 12.5px;
+  --fs-lg: 14px;
+  --fs-xl: 17px;
+  --fs-num: 30px;
+
+  /* Geometry */
+  --top-h: 52px;
+  --left-w: 320px;
+  --right-w: 344px;
+  --bottom-h: 104px;
+  --gap: 10px;
+  --radius: 5px;
+  --radius-sm: 3px;
+  --blur: blur(14px) saturate(125%);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
