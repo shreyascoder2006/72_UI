@@ -193,16 +193,21 @@
     }
 
     const buf = new Float32Array(K * N);
-    function evaluate(k, ids, nMembers = 32) {
+    // What the chosen actions do to the simulation, as applied from step kStart.
+    const modsFor = (ids, kStart) => CATALOG.filter((a) => ids.includes(a.id))
+      .flatMap((a) => a.mods(engine, kStart)).filter((m) => m.kind !== 'edge' || m.e >= 0);
+
+    // Decide at step k on what was known then; crews start at kStart (k: straight away).
+    function evaluate(k, ids, nMembers = 32, kStart = k) {
       const acts = CATALOG.filter((a) => ids.includes(a.id));
-      const mods = acts.flatMap((a) => a.mods(engine, k)).filter((m) => m.kind !== 'edge' || m.e >= 0);
+      const mods = modsFor(ids, kStart);
       const blank = () => ({ critHours: 0, careHours: 0, nCrit: 0, hospPeak: 0, hospCrit: 0, peaks: new Float32Array(N) });
       const base = blank(), withA = blank();
       for (const { m, w } of topMembers(k, nMembers)) {
         const b = metrics((kk, i) => engine.R(m, kk, i), k);
         let a = b;
         if (mods.length) {
-          engine.simulate(engine.members[m], buf, 1000 + m, mods, null, { k0: k, from: engine.traj.subarray(m * K * N, (m + 1) * K * N) });
+          engine.simulate(engine.members[m], buf, 1000 + m, mods, null, { k0: Math.min(K - 1, kStart), from: engine.traj.subarray(m * K * N, (m + 1) * K * N) });
           a = metrics((kk, i) => buf[kk * N + i], k);
         }
         for (const [acc, x] of [[base, b], [withA, a]]) {
@@ -255,7 +260,41 @@
       return r.value;
     }
 
-    return { CATALOG, evaluate, recommend, recommendAsync };
+    // How much of the plan's benefit survives starting later. The decision is still
+    // taken at k with information up to k; only the crews start late, so this answers
+    // "by when must we move", not "what will we know later".
+    function deadline(k, ids, maxH = 24, stepH = 2) {
+      const pts = [];
+      for (let h = 0; h <= maxH; h += stepH) {
+        const ks = k + Math.round(h / DT);
+        if (ks >= K - 1) break;
+        const r = evaluate(k, ids, 16, ks);
+        pts.push({ h, reduction: r.reduction, critHours: r.with.critHours, base: r.base.critHours });
+      }
+      const r0 = pts.length ? pts[0].reduction : 0;
+      let actBy = null, half = null;
+      if (r0 > 0.02) for (const p of pts) {
+        if (p.reduction >= 0.8 * r0) actBy = p.h;              // last start keeping 80%
+        if (half == null && p.reduction < 0.5 * r0) half = p.h; // first start worth under half
+      }
+      return { pts, r0, actBy, half };
+    }
+
+    // Weighted mean risk with the plan minus without it, per facility and step after k:
+    // what the twin adds to its own view to show the city as the plan would leave it.
+    function trajectory(k, ids, nMembers = 24) {
+      const mods = modsFor(ids, k);
+      const delta = new Float32Array(K * N);
+      if (!mods.length) return { k0: k, delta };
+      for (const { m, w } of topMembers(k, nMembers)) {
+        const tr = engine.traj.subarray(m * K * N, (m + 1) * K * N);
+        engine.simulate(engine.members[m], buf, 1000 + m, mods, null, { k0: k, from: tr });
+        for (let q = k * N; q < K * N; q++) delta[q] += w * (buf[q] - tr[q]);
+      }
+      return { k0: k, delta };
+    }
+
+    return { CATALOG, evaluate, recommend, recommendAsync, deadline, trajectory };
   }
 
   root.TWIN.interventions = { CATALOGS, generate, create };
