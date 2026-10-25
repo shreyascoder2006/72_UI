@@ -23,8 +23,9 @@ Any static file server works. Opening `index.html` straight from disk (`file://`
 browsers block local `fetch` there, so the map falls back to live OpenFreeMap tiles.
 
 `python3 tools/build_dist.py` produces `dist/index.html`, a single page with all CSS and JavaScript
-inlined, plus `dist/data/` with the tiles it needs. It runs under a strict Content-Security-Policy
-(`connect-src 'self'`, scripts only from cdnjs) and is what the published artifact is built from.
+inlined, plus `dist/data/bundles/`: the tiles and glyphs packed as base64 JSON for hosts that only
+serve text and web media types. It runs under a strict Content-Security-Policy (`connect-src
+'self'`, scripts only from cdnjs) and is what the published artifact is built from.
 
 ### Renderer: Mapbox GL JS or MapLibre GL JS
 

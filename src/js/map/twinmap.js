@@ -24,12 +24,30 @@
     return `10/${x}/${y}`;
   }
 
-  async function localTilesAvailable(base, geo) {
+  async function localTilesAvailable(base, geo, cfg) {
     if (location.protocol === 'file:') return false;
     try {
+      if (cfg.tileBundles) return (await fetch(base + cfg.tileBundles)).ok;
       const r = await fetch(base + 'data/tiles/' + z10Tile(geo.center) + '.pbf', { cache: 'force-cache' });
       return r.ok && (await r.arrayBuffer()).byteLength > 0;
     } catch (e) { return false; }
+  }
+
+  // Bundled mode (single-page builds): tiles and glyphs are packed as base64 in a few
+  // JSON files listed by an index, for hosts that only serve text and web media types.
+  function bundleReader(base, indexPath) {
+    let index = null;
+    const bundles = {};
+    const decode = (s) => { const bin = atob(s), out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out.buffer; };
+    return async function read(kind, key) {
+      index = index || fetch(base + indexPath).then((r) => r.json());
+      const idx = await index;
+      const name = idx[kind][key];
+      if (!name) return new ArrayBuffer(0);
+      bundles[name] = bundles[name] || fetch(base + idx.bundles[name]).then((r) => r.json());
+      const s = (await bundles[name])[key];
+      return s ? decode(s) : new ArrayBuffer(0); // a fresh buffer each time: MapLibre transfers it
+    };
   }
 
   function loadScript(src) {
@@ -74,12 +92,18 @@
     const gl = root.maplibregl;
     const base = baseURL(cfg);
     const want = cfg.tiles || 'auto';
-    const local = want === 'local' || (want === 'auto' && (await localTilesAvailable(base, geo)));
+    const local = want === 'local' || (want === 'auto' && (await localTilesAvailable(base, geo, cfg)));
     let tiles, glyphs;
     if (local) {
       if (!root.__twinProtocol) {
+        const fromBundle = cfg.tileBundles ? bundleReader(base, cfg.tileBundles) : null;
         gl.addProtocol('twin', async (params, abort) => {
           const u = params.url.slice('twin://'.length);
+          if (fromBundle) {
+            if (u.startsWith('tiles/')) return { data: await fromBundle('tiles', u.slice(6)) };
+            const [, stack, range] = u.split('/');
+            return { data: await fromBundle('fonts', slug(stack.split(',')[0]) + '/' + range) };
+          }
           let path;
           if (u.startsWith('tiles/')) path = base + 'data/' + u + '.pbf';
           else { const [, stack, range] = u.split('/'); path = base + 'data/fonts/' + slug(stack.split(',')[0]) + '/' + range + '.pbf'; }

@@ -5,7 +5,9 @@
                 on the OpenStreetMap tiles shipped in data/tiles.
    tiles        'auto' (baked tiles, falling back to live OpenFreeMap tiles when they
                 cannot be fetched, e.g. from file://), 'local', or 'remote'.
-   dataBase     Base URL for the data/ folder if it is hosted elsewhere. */
+   dataBase     Base URL for the data/ folder if it is hosted elsewhere.
+   tileBundles  Set by tools/build_dist.py: path of the JSON index of base64 tile bundles
+                used by single-page builds. Leave unset for the per-tile .pbf files. */
 window.TWIN_CONFIG = Object.assign({
   mapboxToken: '',
   tiles: 'auto',
