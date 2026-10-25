@@ -35,7 +35,7 @@
           <div class="insp-coord">${f.lngLat[1].toFixed(5)}° N, ${Math.abs(f.lngLat[0]).toFixed(5)}° W · ${esc(f.source)}</div>
         </div>
         <div class="insp-body scroll">
-          <div class="feed"><canvas id="feedCanvas"></canvas><span class="feed-tag" id="feedTag"><i></i>${esc(f.sensor)} · LIVE</span><span class="feed-ts" id="feedTs"></span></div>
+          <div class="feed" title="Illustrative rendering of the twin's modeled state at this facility. It is not a camera or SCADA feed."><canvas id="feedCanvas"></canvas><span class="feed-tag" id="feedTag"><i></i>${esc(f.sensor)} · SIM</span><span class="feed-ts" id="feedTs"></span></div>
           <div class="primary">
             <div class="ring"><canvas id="ringCanvas"></canvas><div class="ring-val"><b id="ringVal">0%</b><small>Risk index</small></div></div>
             <div class="primary-meta">
@@ -45,6 +45,7 @@
             </div>
           </div>
           <div class="stats" id="stats"></div>
+          <div class="stats-note">≈ Readings in physical units are illustrative, derived from the risk index. They are not sensor measurements.</div>
           <div class="sec"><div class="sec-head"><span class="sec-title">Inbound cascade sources</span><span class="caps" id="inCount"></span></div><div class="compass" id="compass"></div></div>
           <div class="sec"><div class="sec-head"><span class="sec-title">Multi-horizon forecast</span><span class="caps" id="fcIssued"></span></div>
             <canvas class="chart" id="fcCanvas" style="height:132px"></canvas><div class="horizons" id="horizons"></div></div>
@@ -81,7 +82,7 @@
       feed.set({ kind, risk: r, rain, flood: upFlood, voltage: f.voltage, offline });
       const tag = el.querySelector('#feedTag');
       tag.classList.toggle('off', offline);
-      tag.lastChild.textContent = `${f.sensor} · ${offline ? 'OFFLINE' : v.forecastView ? 'LAST FRAME' : v.mode === 'historical' ? 'ARCHIVE' : 'LIVE'}`;
+      tag.lastChild.textContent = `${f.sensor} · ${offline ? 'OFFLINE' : 'SIM'}`;
       const ck = C.clockAt(app.geo.t0, v.forecastView ? v.tNow : v.t);
       el.querySelector('#feedTs').textContent = `${ck.day} ${ck.time} EDT`;
 
@@ -102,11 +103,11 @@
       const capCls = 'r-' + stateOf(clamp(rd.cap - 0.2, 0, 1)).key;
       const nAct = e.inEdges[i].filter((en) => e.edgePosterior(v.kInfo, en).active).length;
       el.querySelector('#stats').innerHTML = [
-        `<div class="stat ${capCls}"><div class="stat-k">${rd.capK}</div><div class="stat-v">${Math.round(rd.cap * 100)}<small>%</small></div><div class="bar"><i style="width:${Math.min(100, rd.cap * 100)}%"></i></div></div>`,
+        `<div class="stat ${capCls}" title="Illustrative, derived from the risk index"><div class="stat-k">${rd.capK}</div><div class="stat-v">≈${Math.round(rd.cap * 100)}<small>%</small></div><div class="bar"><i style="width:${Math.min(100, rd.cap * 100)}%"></i></div></div>`,
         `<div class="stat"><div class="stat-k">ETA to critical</div><div class="stat-v" style="font-size:${eta.length > 7 ? 13 : 16}px">${eta}</div><div class="stat-s">${etaSub}</div></div>`,
-        `<div class="stat"><div class="stat-k">P(critical · 24 h)</div><div class="stat-v">${Math.round((crit ? Math.max(fc.p24, 0.99) : fc.p24) * 100)}<small>%</small></div><div class="stat-s">calibrated ensemble</div></div>`,
+        `<div class="stat"><div class="stat-k">P(critical · 24 h)</div><div class="stat-v">${Math.round((crit ? Math.max(fc.p24, 0.99) : fc.p24) * 100)}<small>%</small></div><div class="stat-s">ensemble probability</div></div>`,
         `<div class="stat r-${tr > 0.75 ? 'normal' : tr > 0.5 ? 'watch' : 'critical'}"><div class="stat-k">Sensor trust</div><div class="stat-v">${Math.round(tr * 100)}<small>%</small></div><div class="bar"><i style="width:${tr * 100}%"></i></div></div>`,
-        `<div class="stat"><div class="stat-k">${rd.readK}</div><div class="stat-v">${offline ? '—' : rd.read}<small>${rd.unit}</small></div><div class="stat-s">${esc(f.sensor)}${offline ? ' offline' : ''}</div></div>`,
+        `<div class="stat" title="Illustrative, derived from the risk index"><div class="stat-k">${rd.readK}</div><div class="stat-v">${offline ? '—' : '≈' + rd.read}<small>${rd.unit}</small></div><div class="stat-s">${offline ? esc(f.sensor) + ' offline' : 'illustrative'}</div></div>`,
         `<div class="stat"><div class="stat-k">Uncertainty</div><div class="stat-v">±${Math.round(sd * 100)}<small>pts</small></div><div class="stat-s">${nAct} upstream active</div></div>`,
       ].join('');
 
@@ -165,7 +166,7 @@
           return `<button class="drv r-${stateOf(d.upstreamRisk).key}" data-goto="${d.from}">
             <span class="drv-name">${esc(fr.name)}</span><span class="drv-val">+${d.value.toFixed(2)}</span>
             <span class="drv-bar"><i style="width:${(Math.max(0, d.value) / maxV) * 100}%"></i></span>
-            <span class="drv-ev">${esc(d.mechanism)}<br>lag ${d.lag} h · weight ${d.weight.toFixed(2)} ± ${d.sd.toFixed(2)} · <span class="st-${d.status}">${d.status}</span> · ${esc(fr.sensor)} ${rdUp.readK.toLowerCase()} ${Number.isNaN(d.upstreamObs) ? 'offline' : rdUp.read + ' ' + rdUp.unit} · trust ${Math.round(d.upstreamTrust * 100)}%</span></button>`;
+            <span class="drv-ev">${esc(d.mechanism)}<br>lag ${d.lag} h · weight ${d.weight.toFixed(2)} ± ${d.sd.toFixed(2)} · <span class="st-${d.status}">${d.status}</span> · ${esc(fr.sensor)} ${rdUp.readK.toLowerCase()} ${Number.isNaN(d.upstreamObs) ? 'offline' : '≈' + rdUp.read + ' ' + rdUp.unit} · trust ${Math.round(d.upstreamTrust * 100)}%</span></button>`;
         }
         const hazard = d.kind === 'hazard';
         const wxName = d.wx ? app.geo.facilities[app.engine.idx[d.wx]] : null;

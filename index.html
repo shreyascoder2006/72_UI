@@ -34,18 +34,19 @@
     </div>
 
     <div class="top-center">
-      <div class="mode-toggle" role="group" aria-label="Data mode">
-        <button id="modeLive" aria-pressed="true"><span class="live-dot"></span>Live</button>
-        <button id="modeHist" aria-pressed="false"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg><span class="mode-label-long">Historical</span></button>
+      <div class="mode-toggle" role="group" aria-label="Time mode">
+        <button id="modeLive" aria-pressed="true" title="The scenario's current moment. The simulated clock advances one minute per second; forecasts use only data up to now."><span class="live-dot"></span>Now</button>
+        <button id="modeHist" aria-pressed="false" title="Replay the whole 72 h and score every forecast against the scenario's hidden ground truth."><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg><span class="mode-label-long">Replay</span></button>
       </div>
-      <div class="clock">
+      <div class="clock" title="Scenario time on a simulated clock, not the current real time">
         <span class="clock-t" id="clockT">T+34.5h</span>
-        <span class="clock-d" id="clockD">SUN 25 OCT · 10:30 EDT</span>
-        <span class="clock-tag" id="clockTag">LIVE</span>
+        <span class="clock-d" id="clockD"><span class="clock-scn">SCENARIO · </span>SUN 25 OCT · 10:30 EDT</span>
+        <span class="clock-tag" id="clockTag">SIM NOW</span>
       </div>
     </div>
 
     <div class="top-right">
+      <span class="sim-badge" id="simBadge" tabindex="0" aria-label="Simulation: all hazard and sensor data are modeled"><span class="sim-long">Simulation</span><span class="sim-short">Sim</span></span>
       <div class="sys" id="sys"><span class="sys-led"></span><span class="sys-text">Starting…</span></div>
       <div class="city-chip" id="cityChip"></div>
     </div>
@@ -158,6 +159,9 @@
 <script src="src/js/ui/timeline.js"></script>
 <script src="src/js/ui/drawers.js"></script>
 <script src="src/js/ui/app.js"></script>
+<script src="src/js/site/store.js"></script>
+<script src="src/js/site/router.js"></script>
+<script src="src/js/views/twin.js"></script>
 <!--/BUILD:SCRIPTS-->
 </body>
 </html>

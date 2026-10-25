@@ -101,7 +101,7 @@
 .feed { position: relative; margin: 12px 14px 0; border-radius: var(--radius-sm); overflow: hidden; background: #050607; border: 1px solid var(--line); aspect-ratio: 16 / 9; max-width: 100%; }
 .feed canvas { display: block; width: 100%; height: 100%; }
 .feed-tag { position: absolute; left: 8px; top: 8px; display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); font: 500 10px / 1 var(--font-mono); color: #d8dde4; }
-.feed-tag i { width: 6px; height: 6px; border-radius: 50%; background: #ff4d4f; animation: pulse 1.6s infinite; }
+.feed-tag i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .feed-tag.off i { background: var(--text-3); animation: none; }
 .feed-ts { position: absolute; right: 8px; bottom: 7px; font: 500 10px / 1 var(--font-mono); color: rgba(220, 226, 234, 0.75); text-shadow: 0 1px 2px #000; }
 
@@ -123,6 +123,7 @@
 .stat-v { margin-top: 5px; font: 500 16px / 1 var(--font-mono); letter-spacing: -0.02em; white-space: nowrap; }
 .stat-v small { font-size: 10.5px; color: var(--text-3); margin-left: 2px; letter-spacing: 0; }
 .stat-s { margin-top: 4px; font: 400 10px / 1.2 var(--font-mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-note { padding: 6px 12px 8px; border-bottom: 1px solid var(--line); font: 400 10px / 1.35 var(--font-ui); color: var(--text-4); }
 .stat .bar { margin-top: 6px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .stat .bar i { display: block; height: 100%; background: var(--rc, var(--accent)); }
 

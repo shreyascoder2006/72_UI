@@ -14,9 +14,17 @@
   }
   const lognorm = (r, s) => Math.exp(gauss(r) * s);
 
+  // Where a scenario's events come from. All current scenarios are modeled: the city's
+  // facilities and street network are real, the hazard and every sensor reading are not.
+  const MODELED = {
+    kind: 'modeled', label: 'Modeled scenario',
+    note: 'The hazard, sensor streams, citizen reports and outcomes are simulated. Facilities, streets and creeks are real (OpenStreetMap).',
+  };
+
   const SCENARIOS = {
     tropical: {
       id: 'tropical',
+      provenance: MODELED,
       label: 'Tropical remnant rainfall',
       blurb: 'Two rain bands from a decaying tropical system moving SW→NE; antecedent soils saturated.',
       heading: 40, // degrees, storm motion
@@ -41,6 +49,7 @@
 
     flash: {
       id: 'flash',
+      provenance: MODELED,
       label: 'Convective flash flood',
       blurb: 'Training thunderstorms stall over the Crabtree basin for three hours.',
       heading: 70,
@@ -65,6 +74,7 @@
 
     heat: {
       id: 'heat',
+      provenance: MODELED,
       label: 'Heat wave and grid stress',
       blurb: 'Three-day heat dome; a derecho line crosses the city late on day two.',
       heading: 110,

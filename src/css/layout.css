@@ -1,5 +1,7 @@
 /* ── Frame ─────────────────────────────────────────────────────────────── */
 .app { position: fixed; inset: 0; }
+/* The twin stays built while another page is shown (site/router.js). */
+.app.view-off { visibility: hidden; pointer-events: none; }
 #map { position: absolute; inset: var(--top-h) 0 0 0; background: var(--bg); }
 .glass { background: var(--panel); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
 
@@ -17,7 +19,7 @@
   font: 500 15px / 1 var(--font-ui); letter-spacing: 0.32em; text-transform: uppercase; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-.brand-sub { margin-top: 3px; font: 500 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.brand-sub { margin-top: 3px; font: 500 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .top-center { display: flex; align-items: center; gap: 14px; }
 .mode-toggle {
@@ -30,16 +32,21 @@
 }
 .mode-toggle button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.08); color: var(--text); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-4); }
-.mode-toggle button[aria-pressed="true"] .live-dot { background: #ff4d4f; box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.6); animation: pulse 1.6s infinite; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.55); } 70% { box-shadow: 0 0 0 7px rgba(255, 77, 79, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0); } }
+/* Steady, not a broadcast-style pulse: "now" is the scenario's simulated now. */
+.mode-toggle button[aria-pressed="true"] .live-dot { background: var(--accent); }
 
 .clock { display: flex; align-items: baseline; gap: 10px; }
 .clock-t { font: 600 18px / 1 var(--font-mono); letter-spacing: -0.02em; }
 .clock-d { font: 500 var(--fs-sm) / 1 var(--font-mono); color: var(--text-3); white-space: nowrap; }
-.clock-tag { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.clock-tag { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
 .clock-tag.forecast { color: var(--watch); }
 
 .top-right { display: flex; justify-content: flex-end; align-items: center; gap: 14px; min-width: 0; }
+.sim-badge {
+  flex: none; padding: 4px 8px; border: 1px dashed var(--text-3); border-radius: 3px; cursor: help;
+  font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2);
+}
+.sim-short { display: none; }
 .sys { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
 .sys-led { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px rgba(63, 178, 127, 0.7); flex: none; }
 .sys-led.warn { background: var(--watch); box-shadow: 0 0 6px rgba(226, 185, 59, 0.7); }
@@ -80,7 +87,9 @@
 .drawer-btn { display: none; }
 @media (max-width: 1180px) {
   :root { --left-w: 290px; --right-w: 320px; }
-  .sys-text { display: none; }
+  .sys-text, .clock-scn { display: none; }
+  .sim-long { display: none; }
+  .sim-short { display: inline; }
 }
 @media (max-width: 960px) {
   :root { --bottom-h: 132px; }
@@ -99,5 +108,12 @@
   .mode-toggle button { padding: 0 9px; }
   .mode-toggle .mode-label-long { display: none; }
   .clock-t { font-size: 15px; }
-  .brand-title { display: none; }
+  .brand-title, .brand-mark { display: none; }
+  .topbar { gap: 6px; }
+  .top-right { gap: 8px; }
+  .sim-badge { padding: 3px 5px; letter-spacing: 0.08em; }
+}
+@media (max-width: 400px) {
+  .topbar { padding-inline: 10px; }
+  .mode-toggle button { padding: 0 6px; }
 }

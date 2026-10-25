@@ -1,4 +1,5 @@
-/* Live sensor feed: a procedural rendering per facility type, driven by its state.
+/* Illustrative sensor view: a procedural rendering per facility type, driven by its modeled
+   state (it is not a camera or telemetry feed, and the inspector labels it so).
    Traffic camera (vehicles slow and bunch with congestion), culvert camera with a
    staff gauge, SCADA one-line, hospital bed board, EMS unit board, radar scope. */
 (function (root) {

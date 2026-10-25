@@ -264,6 +264,9 @@
     const nowSd = new Float32Array(K * N);
     const resid = new Float32Array(N);        // EWMA |residual|
     const flat = new Float32Array(N);
+    // What the trust detector saw at each step (for alert wording only):
+    // 0 nothing, 1 no data, 2 flatline, 3 reading above expectation, 4 below.
+    const cause = new Uint8Array(K * N);
     const neigh = F.map((_, i) => [i, ...inEdges[i].map((e) => E[e].from)]);
     const logw = new Float64Array(M);
     const Tprev = new Float64Array(N).fill(1);
@@ -358,6 +361,7 @@
         let tr = k ? trust[(k - 1) * N + i] : 0.92;
         if (Number.isNaN(y)) {
           tr = tr + (0.35 - tr) * 0.12; // offline: drift toward low confidence
+          cause[k * N + i] = 1;
         } else {
           // Residual in units of total predictive spread: a sensor disagreeing with an
           // uncertain forecast is not evidence that the sensor has failed.
@@ -373,6 +377,8 @@
           let target = Math.exp(-Math.max(0, resid[i] - 1.6) / 1.1);
           if (flat[i] >= 4) target *= 0.25;
           tr = tr + (target - tr) * 0.25;
+          if (flat[i] >= 4) cause[k * N + i] = 2;
+          else if (resid[i] > 1.6) cause[k * N + i] = y > prior[k * N + i] ? 3 : 4;
         }
         trust[k * N + i] = clamp(tr, 0.03, 0.99);
       }
@@ -749,9 +755,17 @@
     function highText(i) {
       return { drainage: 'Stage rising fast, approaching bankfull', pump: 'Pump duty high, wet well rising', traffic: 'Heavy congestion, speeds below 15 mph', power: 'Feeder load high, flood exposure rising', hospital: 'Census rising, ED boarding', ems: 'Response times rising' }[kinds[i]];
     }
+    // Worded from what the detector observed, never from the planted fault list (FAULTS
+    // notes describe the simulation's ground truth, which the system cannot know).
     function sensorText(i, k) {
-      const fl = FAULTS.find((x) => x.id === F[i].id && k * DT >= x.from - 1);
-      const why = fl ? fl.note : 'Readings disagree with neighbouring sensors';
+      let c = 0;
+      for (let kk = k; kk >= Math.max(0, k - 12) && !c; kk--) c = cause[kk * N + i];
+      const why = {
+        1: 'No readings received (feed offline)',
+        2: 'Reading unchanged for 2 h or more while the expected value moved',
+        3: 'Readings persistently above what the forecast and upstream sensors expect',
+        4: 'Readings persistently below what the forecast and upstream sensors expect',
+      }[c] || 'Readings disagree with the forecast and neighbouring sensors';
       return `${why}; influence reduced to ${Math.round(trust[k * N + i] * 100)}%`;
     }
     function reportText(i) {

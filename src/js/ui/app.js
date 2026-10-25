@@ -37,9 +37,11 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
-  async function init() {
+  // ctx: the shared context from the URL (see site/store.js), applied once the twin is up.
+  async function init(ctx = {}) {
     const step = (s) => { $('loadingStep').textContent = s; return nextFrame(); };
-    await step('Assimilating 72 h of sensor streams · 200-member ensemble…');
+    if (ctx.s && T.scenarios[ctx.s]) app.state.scenario = ctx.s;
+    await step('Assimilating 72 h of simulated sensor streams · 200-member ensemble…');
     app.engine = T.engine.create(app.geo, { scenario: app.state.scenario });
     app.view = computeView();
 
@@ -77,7 +79,54 @@
     tm.map.jumpTo({ ...tm.OVERVIEW, zoom: tm.OVERVIEW.zoom - 0.9, pitch: 30, bearing: tm.OVERVIEW.bearing - 40 });
     tm.overview({ duration: 2600 });
     requestAnimationFrame(loop);
+    await app.applyContext(ctx, ['m', 't', 'a']); // the scenario was applied before the engine was built
+    urlReady = true;
+    writeUrl(false);
   }
+
+  // ── Shared context (URL) ───────────────────────────────────────────────
+  // The twin's scenario, mode, time and selection mirror the shared context: deep links
+  // restore them, back/forward replays them, and the twin writes them back as they change.
+  let urlReady = false, applying = false, urlTimer = 0;
+  function contextOf() {
+    const s = app.state;
+    const follow = s.mode === 'live' ? s.streaming || Math.abs(s.t - s.nowT) < 0.01 : Math.abs(s.t - app.engine.HOURS) < 0.01;
+    return { s: s.scenario, m: s.mode === 'historical' ? 'replay' : null, t: follow ? null : s.t, a: s.selected != null ? app.geo.facilities[s.selected].id : null };
+  }
+  // push: a new history entry (selection, mode, scenario); otherwise the entry is replaced.
+  function writeUrl(push) {
+    if (!urlReady || applying || !T.store) return;
+    clearTimeout(urlTimer); urlTimer = 0;
+    T.store.set(contextOf(), { push });
+  }
+  function scheduleUrl() { if (urlReady && !urlTimer) urlTimer = setTimeout(() => { urlTimer = 0; writeUrl(false); }, 400); }
+
+  app.applyContext = async function (ctx, changed) {
+    const s = app.state;
+    applying = true;
+    try {
+      // A new scenario resets the clock, so mode and time are applied again after it.
+      const rebuilt = changed.includes('s') && ctx.s && T.scenarios[ctx.s] && ctx.s !== s.scenario;
+      if (rebuilt) {
+        $('scenario').value = ctx.s;
+        await setScenario(ctx.s);
+      }
+      if (rebuilt || changed.includes('m')) {
+        const mode = ctx.m === 'replay' ? 'historical' : 'live';
+        if (mode !== s.mode) setMode(mode, true);
+      }
+      if (rebuilt || changed.includes('t') || changed.includes('m')) {
+        if (ctx.t == null) { s.t = s.mode === 'live' ? s.nowT : app.engine.HOURS; renderAll(true); }
+        else { app.scrub(ctx.t); app.scrubEnd(); }
+      }
+      if (changed.includes('a')) {
+        const i = ctx.a ? app.geo.facilities.findIndex((f) => f.id === ctx.a) : -1;
+        const want = i >= 0 ? i : null;
+        if (want !== s.selected) app.select(want, { fly: want != null });
+      }
+    } finally { applying = false; }
+    writeUrl(false); // drops what could not be applied (unknown scenario or facility)
+  };
 
   // Arc geometry for power/feed links and the dependency-arc layer.
   function precomputePaths() {
@@ -93,6 +142,7 @@
   let lastKey = '';
   function renderAll(force) {
     const v = (app.view = computeView());
+    scheduleUrl();
     const key = `${v.k}|${v.kInfo}|${v.mode}|${app.state.scenario}|${app.state.selected}|${app.state.layers.arcs}`;
     renderLight(v);
     if (!force && key === lastKey) return;
@@ -124,13 +174,13 @@
     if (Math.abs(v.t - lastSunT) >= 0.05) { lastSunT = v.t; app.tm.setSimTime(simDate(v.t)); }
     const ck = C.clockAt(app.geo.t0, v.t);
     $('clockT').textContent = fmtT(v.t);
-    $('clockD').textContent = `${ck.day} · ${ck.time} EDT`;
+    $('clockD').innerHTML = `<span class="clock-scn">SCENARIO · </span>${ck.day} · ${ck.time} EDT`;
     const tag = $('clockTag');
     if (v.mode === 'historical') { tag.textContent = 'REPLAY'; tag.className = 'clock-tag'; }
     else if (v.forecastView) { tag.textContent = `FORECAST +${(v.t - v.tNow).toFixed(1)}h`; tag.className = 'clock-tag forecast'; }
     else if (v.t < v.tNow - 0.01) { tag.textContent = `PAST −${(v.tNow - v.t).toFixed(1)}h`; tag.className = 'clock-tag'; }
-    else { tag.textContent = app.state.streaming ? 'STREAMING' : 'LIVE'; tag.className = 'clock-tag'; }
-    tag.title = v.mode === 'live' && Math.abs(v.t - v.tNow) > 0.01 ? 'Return to live' : '';
+    else { tag.textContent = app.state.streaming ? 'REPLAY STREAM' : 'SIM NOW'; tag.className = 'clock-tag'; }
+    tag.title = v.mode === 'live' && Math.abs(v.t - v.tNow) > 0.01 ? 'Return to the simulated now' : '';
     tag.style.cursor = tag.title ? 'pointer' : '';
   }
 
@@ -179,8 +229,10 @@
     const faults = Array.from(v.trust).filter((t, i) => t < 0.5 && e.kinds[i]).length;
     const sys = $('sys');
     sys.querySelector('.sys-led').classList.toggle('warn', faults > 0);
-    sys.querySelector('.sys-text').textContent = `${e.N} feeds assimilated · ESS ${Math.round(ess)}/${e.M} · ${faults ? faults + ' sensor' + (faults > 1 ? 's' : '') + ' degraded' : 'all sensors healthy'}`;
+    sys.querySelector('.sys-text').textContent = `${e.N} simulated feeds assimilated · ESS ${Math.round(ess)}/${e.M} · ${faults ? faults + ' sensor' + (faults > 1 ? 's' : '') + ' degraded' : 'all sensors healthy'}`;
     sys.title = `Renderer: ${app.tm.renderer}. Effective sample size of the particle filter averaged over facilities.`;
+    const pv = e.scen.provenance;
+    $('simBadge').title = `${pv ? pv.label + ': ' + e.scen.label + '. ' + pv.note : 'Simulated data.'} Nothing here is a real-time feed.`;
   }
 
   // Cascade strip: one stage per system, lit when it reaches HIGH, with the time it did
@@ -298,6 +350,7 @@
     if (i != null && opts.fly) setTimeout(() => app.tm.flyToFacility(app.geo.facilities[i]), 30);
     renderCrumbs();
     renderAll(true);
+    writeUrl(true);
   };
   app.focusAlert = function (i) {
     app.select(i, { fly: true });
@@ -334,7 +387,7 @@
     app.select(null);
     s.streaming = true; s.playing = true; s.nowT = 0; s.t = 0; announced = new Set();
     app.tm.overview({ duration: 1200 });
-    toast('<b>Replay</b><span>Streaming sensor data from T+0. Forecasts and links update as evidence arrives.</span>');
+    toast('<b>Replay</b><span>Replaying the simulated sensor streams from T+0. Forecasts and links update as evidence arrives.</span>');
     app.timeline.invalidate();
     renderAll(true);
   };
@@ -349,6 +402,7 @@
     app.tm.overview();
     app.timeline.invalidate();
     renderAll(true);
+    writeUrl(true);
   };
   function setMode(mode, quiet) {
     const s = app.state;
@@ -359,6 +413,7 @@
     else { s.nowT = app.engine.HOURS; if (!quiet) app.setDrawer('valid'); }
     app.timeline.invalidate();
     renderAll(true);
+    writeUrl(true);
   }
   app.setDrawer = function (d) {
     const s = app.state;
@@ -372,7 +427,7 @@
     s.scenario = id; s.playing = false; s.streaming = false;
     const ld = document.createElement('div');
     ld.className = 'loading'; ld.style.background = 'rgba(9,11,14,0.82)';
-    ld.innerHTML = `<div class="loading-title">${esc(T.scenarios[id].label)}</div><div class="loading-bar"><i></i></div><div class="loading-step">Re-running the 200-member ensemble and replaying the sensor streams…</div>`;
+    ld.innerHTML = `<div class="loading-title">${esc(T.scenarios[id].label)}</div><div class="loading-bar"><i></i></div><div class="loading-step">Re-running the 200-member ensemble and replaying the simulated sensor streams…</div>`;
     $('app').appendChild(ld);
     await nextFrame(); await nextFrame();
     app.engine = T.engine.create(app.geo, { scenario: id });
@@ -383,7 +438,9 @@
     renderAll(true);
     if (s.selected != null) app.inspector.open(s.selected);
     ld.classList.add('done'); setTimeout(() => ld.remove(), 600);
-    toast(`<b>Scenario</b><span>${esc(T.scenarios[id].blurb)}</span>`);
+    const pv = T.scenarios[id].provenance;
+    toast(`<b>${pv ? esc(pv.label) : 'Scenario'}</b><span>${esc(T.scenarios[id].blurb)}</span>`);
+    writeUrl(true);
   }
 
   function applyPadding() {
@@ -419,7 +476,7 @@
     $('btnPlan').addEventListener('click', () => app.setDrawer('plan'));
     $('btnValid').addEventListener('click', () => app.setDrawer('valid'));
     const sel = $('scenario');
-    sel.innerHTML = Object.values(T.scenarios).map((s) => `<option value="${s.id}">${esc(s.label)}</option>`).join('');
+    sel.innerHTML = Object.values(T.scenarios).map((s) => `<option value="${s.id}">${esc(s.label)}${s.provenance ? ' · ' + esc(s.provenance.kind) : ''}</option>`).join('');
     sel.value = app.state.scenario;
     sel.addEventListener('change', () => setScenario(sel.value));
     $('scenIco').innerHTML = I.chevron;
@@ -445,9 +502,13 @@
     renderCrumbs();
   }
 
+  app.toast = toast;
+  // Started by the #/twin page (views/twin.js) with the shared context from the URL.
+  app.boot = function (ctx) {
+    init(ctx).catch((err) => {
+      console.error(err);
+      $('loadingStep').textContent = 'Could not start the twin: ' + (err && err.message ? err.message : err);
+    });
+  };
   root.TWIN.app = app;
-  window.addEventListener('DOMContentLoaded', () => init().catch((err) => {
-    console.error(err);
-    $('loadingStep').textContent = 'Could not start the twin: ' + (err && err.message ? err.message : err);
-  }));
 })(typeof window !== 'undefined' ? window : globalThis);
