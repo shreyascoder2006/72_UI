@@ -11,9 +11,9 @@
    Views write the context with set(); changes that arrive from the address bar or from
    back/forward are announced to subscribers with on(). set() never echoes to subscribers. */
 (function (root) {
-  const KEYS = ['city', 's', 't', 'm', 'a', 'c'];
+  const KEYS = ['city', 's', 't', 'm', 'a', 'c', 'area'];
   let path = '/';
-  let ctx = { city: null, s: null, t: null, m: null, a: null, c: null };
+  let ctx = { city: null, s: null, t: null, m: null, a: null, c: null, area: null };
   const subs = [];
 
   function clean(c) {
@@ -25,6 +25,7 @@
       m: c.m === 'replay' ? 'replay' : null,
       a: c.a || null,
       c: c.c ? String(c.c).toUpperCase() : null,
+      area: c.area ? String(c.area) : null,
     };
   }
   function parse(hash) {

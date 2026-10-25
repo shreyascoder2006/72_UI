@@ -295,3 +295,47 @@ i.haz, .sw.haz { background: var(--water); }
   background: var(--panel-solid);
 }
 .wn-cap .wn-pre { border: 1px solid var(--line); border-top: none; }
+
+/* ── My area (#/area) ───────────────────────────────────────────────────── */
+.ar-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 10px; }
+.ar-pick .select select { min-width: 200px; }
+.ar-pick .pg-asof { margin: 0; }
+
+.ar-verdict {
+  display: flex; gap: 14px; align-items: flex-start; margin: 22px 0 0; padding: 18px 20px;
+  background: var(--rd, var(--well)); border: 1px solid var(--rc, var(--line)); border-radius: var(--radius);
+}
+.ar-verdict-dot { padding-top: 7px; }
+.ar-verdict-dot .dot { width: 12px; height: 12px; background: var(--rc); }
+.ar-verdict.r-critical .dot, .ar-verdict.r-high .dot { animation: ar-pulse 2s ease-in-out infinite; }
+@keyframes ar-pulse { 50% { opacity: 0.35; } }
+.ar-verdict h2 { margin: 0; font: 600 25px / 1.25 var(--font-cond); text-wrap: balance; }
+.ar-verdict p { margin: 8px 0 0; color: var(--text-2); font-size: var(--fs-lg); line-height: 1.55; }
+
+.ar-strip { margin-top: 14px; }
+.ar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.ar-row-label { flex: none; width: 118px; font-size: var(--fs-md); color: var(--text-2); text-align: right; }
+.ar-cells { flex: 1; min-width: 0; display: flex; gap: 2px; }
+.ar-cells i { flex: 1; height: 24px; border-radius: 2px; background: var(--rc); opacity: 0.85; }
+.ar-cells i.r-normal { opacity: 0.4; }
+.ar-axis { position: relative; height: 16px; margin-left: 130px; }
+.ar-axis span { position: absolute; transform: translateX(-50%); font: 400 var(--fs-xs) / 1 var(--font-mono); color: var(--text-3); }
+.ar-axis span:first-child { transform: none; }
+
+.ar-do-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ar-advice { margin: 12px 0 0; font-size: var(--fs-lg); line-height: 1.7; color: var(--text); }
+.ar-numbers { margin: 12px 0 0; color: var(--text-2); font-size: var(--fs-md); }
+.ar-numbers b { color: var(--text); font-family: var(--font-mono); }
+
+.ar-hosp-name { margin: 12px 0 0; font-size: var(--fs-lg); }
+.ar-hosp-states { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+.ar-hosp-states > div { display: flex; flex-direction: column; gap: 6px; }
+
+.ar-roads { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ar-roads li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.ar-roads li span { color: var(--text-3); font-size: var(--fs-md); }
+
+@media (max-width: 620px) {
+  .ar-row-label { width: 80px; font-size: var(--fs-sm); }
+  .ar-axis { margin-left: 92px; }
+}

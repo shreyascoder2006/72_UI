@@ -56,12 +56,32 @@ permission; this site's interface and renderer are its own.
 The site is a set of pages in one document, addressed by the URL hash, so each engine and the 3D
 city are built once and shared, and every view can be linked to.
 
+Six features sit in a permanent sidebar on the left, present on every view including the
+3D twin, grouped as **Operations** and **Public**. Each row carries a chip computed from
+the engine at the issue time (the city's state, the crisis count, the plan's reduction),
+so scrubbing the clock moves the sidebar with the rest of the site. It collapses to an
+icon rail, and below 960 px becomes an overlay.
+
 | Page | Path | What it shows |
 | --- | --- | --- |
-| Overview | `#/` | The situation at the issue time in computed sentences; the predicted course (Cascade-R observed and forecast, and when each facility first crosses HIGH RISK and CRITICAL, by system); the crises in the registry; their footprints on a city map; the planner's recommended response within 5 crews. |
+| Situation | `#/` | The situation at the issue time in computed sentences; the predicted course (Cascade-R observed and forecast, and when each facility first crosses HIGH RISK and CRITICAL, by system); the crises in the registry; their footprints on a city map; the planner's recommended response within 5 crews. |
 | Crises | `#/crises` | The crisis registry with Cascade-R by system, footprints, couplings and contention between crises, and the registry as issued each hour up to the issue time. |
 | Crisis | `#/crises/<id>` | One crisis: how it began, its members and what drives each now, the order in which they cross HIGH RISK and CRITICAL (observed, then forecast with probability), the residents in its footprint (modeled), its history, and a link that opens it on the twin. |
-| Digital twin | `#/twin` | The 3D operations room. With `c=<crisis id>` it draws every crisis footprint, frames the camera on that one and shows it in the breadcrumb. |
+| City twin | `#/twin` | The 3D operations room, with its own drawers for the learned dependency graph, the intervention planner and replay validation. With `c=<crisis id>` it draws every crisis footprint, frames the camera on that one and shows it in the breadcrumb. |
+| Response | `#/plan` | The action catalogue with what each action is worth alone, a crew budget, the planner's recommendation, a before/after ledger (critical facility-hours, hospital and EMS hours, P(a hospital goes critical), facilities reaching critical), what the plan costs elsewhere, and the **decision deadline**. |
+| Warnings | `#/warnings` | A plain-text situation report, an OASIS CAP 1.2 alert per crisis with one info block per city language, and the public cell-broadcast text as a handset receives it, with its GSM-7 / UCS-2 encoding and segment count. Everything is marked EXERCISE. |
+| My area | `#/area` | The same forecast for a resident: a plain-language verdict, the next 36 h per system serving the area, what to do in the city's languages, the nearest hospital now and at +6 and +12 h, and the roads forecast to close. |
+
+**The decision deadline** is what a dashboard cannot show. `interventions.deadline(k, ids)`
+re-runs the plan with the crews starting 0, 2, 4 … 24 h later, still deciding at `k` on
+information up to `k`. Nagpur's chlorine release decided at T+31 is worth 55% fewer
+critical facility-hours if the crews move now, 36% after two hours and nothing after six;
+the monsoon plan decided at T+37 keeps 80% of its value until T+47. Same engine, same
+page, opposite decisions.
+
+**Segment counts** in the warnings are the same kind of honesty. GSM 03.38 packs 160
+characters into one SMS; Devanagari forces UCS-2 and 70, so the Nagpur flood warning is
+one message in English, two in Marathi and three in Hindi.
 
 The shared context travels in the query (`src/js/site/store.js`):
 
@@ -73,6 +93,7 @@ The shared context travels in the query (`src/js/site/store.js`):
 | `m` | `replay` for replay mode; absent = now | `m=replay` |
 | `a` | selected facility id | `a=HSP-WMR` |
 | `c` | crisis shown on the twin | `c=CR-RAL-4573` |
+| `area` | district shown on My area | `area=Dhantoli` |
 
 For example `http://localhost:8000/#/twin?city=raleigh&s=flash&t=40&a=HSP-WMR` opens Raleigh's
 flash-flood scenario at T+40 with WakeMed selected, and
@@ -248,14 +269,17 @@ evidence of real-world skill.
 index.html, config.js      page shell and runtime configuration
 src/css/                   tokens, layout, panels, map chrome
 src/js/core.js             risk vocabulary, seeded RNG, geo helpers
-src/js/engine/             scenarios, ensemble + assimilation + learning, interventions,
-                           analytics (Cascade-R and the crisis registry), population
+src/js/engine/             scenarios, ensemble + assimilation + learning, interventions
+                           (with decision deadlines), analytics (Cascade-R and the crisis
+                           registry), population, comms (SITREP, CAP 1.2, SMS)
 src/js/map/                basemap style, layers, hex markers, radar, renderer bootstrap
 src/js/ui/                 sidebar, inspector, timeline, drawers, sensor feed, app orchestrator
 src/js/site/               engine access for every page (services.js), shared context in the URL
-                           (store.js), the page router (router.js), page header, links and the
-                           SVG city map (pages.js)
+                           (store.js), the page router (router.js), the left sidebar and what
+                           the site is (nav.js), page header, links and the SVG city map
+                           (pages.js)
 src/js/views/              pages: overview.js (#/), crises.js (#/crises, #/crises/<id>),
+                           plan.js (#/plan), warnings.js (#/warnings), area.js (#/area),
                            twin.js (the operations room at #/twin)
 src/js/data/geodata*.js    generated per city: facilities, routes, networks, population (from OSM)
 data/tiles, data/fonts     baked OpenMapTiles vector tiles and label glyphs
@@ -281,7 +305,10 @@ areas.
 ### Tests
 
 ```bash
+sh tools/test/regress.sh baseline/ check           # every probe above, diffed against a stored baseline
 node tools/test/engine_probe.js tropical          # engine timeline, learning, validation
+node tools/test/plan_probe.js --city nagpur       # decision deadlines and the ghost-city delta
+node tools/test/comms_probe.js --city nagpur      # CAP, SMS segments and the situation report
 node tools/test/interventions_probe.js            # counterfactual planner
 node tools/test/analytics_probe.js [--city nagpur] # Cascade-R and the crisis registry per scenario
 node tools/test/smoke.js http://localhost:8000/ out/   # headless browser run of the twin (Playwright)

@@ -42,8 +42,9 @@ const { chromium } = require('playwright');
     groups: [...document.querySelectorAll('#nav .nav-group-title')].map((g) => g.textContent),
   }));
   check('sidebar lists the built features only, with live chips',
-    nav.items.join() === '/,/crises,/twin' && nav.labels.join() === 'Situation,Crises,City twin'
-    && !nav.planned.some((p) => nav.items.includes(p)) && nav.groups.join() === 'Operations'
+    nav.items.join() === '/,/crises,/twin,/plan,/warnings,/area'
+    && nav.labels.join() === 'Situation,Crises,City twin,Response,Warnings,My area'
+    && !nav.planned.some((p) => nav.items.includes(p)) && nav.groups.join() === 'Operations,Public'
     && /NORMAL|WATCH|HIGH|CRITICAL/.test(nav.chips[0]), nav);
   // Collapsing leaves the icons and survives a reload; the rail is narrower.
   await click('#navCollapse');
@@ -62,6 +63,59 @@ const { chromium } = require('playwright');
   await pageReady();
   pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, plan: !!document.querySelector('#ovPlanBody .plan-list') }));
   check('city selector → Raleigh overview, no reload', pg.hash === '#/?city=raleigh&s=tropical' && /Raleigh/.test(pg.h1) && pg.plan, pg);
+
+  // The three operations pages added in the 6-feature build.
+  await click('#nav a[data-nav="/plan"]');
+  await until(() => /#\/plan/.test(location.hash) && !!document.querySelector('.pl-act'));
+  await until(() => !!document.querySelector('.pl-ledger'), null, 70000).catch(() => {});
+  let pl = await page.evaluate(() => ({
+    hash: location.hash, acts: document.querySelectorAll('.pl-act').length,
+    ledger: document.querySelectorAll('.pl-cellbox').length,
+    chosen: document.querySelectorAll('.pl-act input:checked').length,
+    title: document.title,
+  }));
+  check('Response opens with the planner\'s own recommendation and a ledger',
+    pl.acts >= 7 && pl.ledger === 4 && pl.chosen >= 1 && /^Response/.test(pl.title), pl);
+  await until(() => !!document.querySelector('.pl-chart'), null, 90000).catch(() => {});
+  pl = await page.evaluate(() => ({ chart: !!document.querySelector('.pl-chart'), line: (document.querySelector('.pl-deadline-line') || {}).textContent || '' }));
+  check('Response shows the decision deadline', pl.chart && /benefit|value|now/i.test(pl.line), pl);
+
+  await click('#nav a[data-nav="/warnings"]');
+  await until(() => /#\/warnings/.test(location.hash) && !!document.querySelector('.wn-phone'));
+  await until(() => (document.getElementById('wnSitrep') || {}).textContent.includes('SITUATION REPORT'), null, 90000).catch(() => {});
+  const wn = await page.evaluate(() => ({
+    phones: document.querySelectorAll('.wn-phone').length,
+    segs: [...document.querySelectorAll('.wn-seg')].map((s) => s.textContent),
+    cap: (document.querySelector('.wn-cap pre') || {}).textContent.slice(0, 40),
+    sitrep: (document.getElementById('wnSitrep') || {}).textContent.slice(0, 20),
+    exercise: !!document.querySelector('.warn-exercise'),
+  }));
+  check('Warnings issues CAP, SMS per language and a situation report',
+    wn.phones >= 2 && wn.segs.some((t) => /GSM-7/.test(t)) && wn.cap.startsWith('<?xml')
+    && wn.sitrep.includes('SITUATION REPORT') && wn.exercise, wn);
+
+  await click('#nav a[data-nav="/area"]');
+  await until(() => /#\/area/.test(location.hash) && !!document.querySelector('.ar-verdict'));
+  const ar = await page.evaluate(() => ({
+    verdict: (document.querySelector('.ar-verdict h2') || {}).textContent || '',
+    rows: document.querySelectorAll('.ar-row').length,
+    cells: document.querySelectorAll('.ar-row:first-child .ar-cells i').length,
+    advice: ((document.querySelector('.ar-advice') || {}).textContent || '').length,
+    area: location.hash.includes('area='),
+  }));
+  check('My area gives a plain-language verdict, a 36 h strip and advice',
+    /\./.test(ar.verdict) && ar.rows >= 2 && ar.cells === 37 && ar.advice > 40, ar);
+  // Switching language keeps the page and swaps the advice.
+  const before = await page.evaluate(() => (document.querySelector('.ar-advice') || {}).textContent);
+  const langs = await page.evaluate(() => document.querySelectorAll('#arLang button').length);
+  if (langs > 1) {
+    await page.evaluate(() => document.querySelectorAll('#arLang button')[1].click());
+    await until((b) => (document.querySelector('.ar-advice') || {}).textContent !== b, before, 8000).catch(() => {});
+    const after = await page.evaluate(() => (document.querySelector('.ar-advice') || {}).textContent);
+    check('My area switches language in place', after !== before && after.length > 10, { before: before.slice(0, 30), after: after.slice(0, 30) });
+  }
+  await page.evaluate(() => TWIN.store.go('/', { replace: true }));
+  await pageReady();
 
   // 2. Tabs and links: crisis registry, a crisis, then the twin framed on it.
   await click('#nav a[data-nav="/crises"]');
