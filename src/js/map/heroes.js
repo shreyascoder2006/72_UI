@@ -105,7 +105,7 @@
           renderer.shadowMap.enabled = true;
           renderer.shadowMap.type = THREE.PCFSoftShadowMap;
           renderer.toneMapping = THREE.ACESFilmicToneMapping;
-          renderer.toneMappingExposure = 0.92;
+          renderer.toneMappingExposure = 0.76; // matches the muted city buildings (buildings.js)
           // Render into whatever framebuffer the map is drawing to (Mapbox may use an
           // offscreen target); three's "null" target means the host framebuffer here.
           const bind = renderer.state.bindFramebuffer.bind(renderer.state);
@@ -236,13 +236,15 @@
         day: { sun: '#fff3df', si: 2.6, sky: '#c8d6e6', gnd: '#3a342c', hi: 0.7, env: 0.6 },
         dawn: { sun: '#ffc08a', si: 1.6, sky: '#8c8fb0', gnd: '#2c2622', hi: 0.45, env: 0.38 },
         dusk: { sun: '#ff9f68', si: 1.5, sky: '#7d7aa2', gnd: '#2a2420', hi: 0.42, env: 0.35 },
-        night: { sun: '#9fb6e8', si: 0.35, sky: '#2b3a58', gnd: '#0e0f12', hi: 0.25, env: 0.14 },
+        night: { sun: '#9fb6e8', si: 0.22, sky: '#2b3a58', gnd: '#0e0f12', hi: 0.16, env: 0.1 },
       }[phase];
       layer._sun.color.set(P.sun); layer._sun.intensity = P.si;
       layer._hemi.color.set(P.sky); layer._hemi.groundColor.set(P.gnd); layer._hemi.intensity = P.hi;
       layer._scene.environmentIntensity = P.env;
       layer._catcher.material.opacity = phase === 'night' ? 0.12 : phase === 'day' ? 0.42 : 0.3;
-      const night = phase === 'night' ? 1 : phase === 'day' ? 0 : 0.55;
+      // Lit windows follow the same curve as the city's (buildings.js).
+      const t = Math.max(0, Math.min(1, (sun.elevation + 8) / 14));
+      const night = 1 - t * t * (3 - 2 * t);
       for (const p of Object.values(models)) p.then((mdl) => mdl.scene.traverse((o) => {
         if (!o.isMesh || !o.material.userData.dayEmissive) return;
         const m = o.material;

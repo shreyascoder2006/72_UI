@@ -30,7 +30,8 @@ const { chromium } = require('playwright');
   await page.evaluate(() => { TWIN.app.scrub(42); TWIN.app.scrubEnd(); });
   await page.waitForTimeout(2000);
   await page.screenshot({ path: `${out}/09-heat.png` });
-  // phone
+  // phone (close the desktop page first: on software GL its render loop starves the new page)
+  await ctx.close();
   const m = await browser.newContext({ viewport: { width: 400, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const p2 = await m.newPage();
   p2.on('pageerror', (e) => errors.push('[mobile pageerror] ' + e.message));

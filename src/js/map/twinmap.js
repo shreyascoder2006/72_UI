@@ -94,11 +94,16 @@
       container, style: 'mapbox://styles/mapbox/standard', config: { basemap: { ...STANDARD, lightPreset } },
       ...OVERVIEW, antialias: true, attributionControl: false, minZoom: 10.6, maxZoom: 18.5, maxPitch: 75, projection: 'mercator',
     });
-    await new Promise((res, rej) => {
-      const to = setTimeout(() => rej(new Error('Mapbox style timeout')), 15000);
-      map.once('style.load', () => { clearTimeout(to); res(); });
-      map.on('error', (e) => { if (e && e.error && /401|403|token/i.test(String(e.error.message || e.error.status))) { clearTimeout(to); rej(e.error); } });
-    });
+    try {
+      await new Promise((res, rej) => {
+        const to = setTimeout(() => rej(new Error('Mapbox style timeout')), 15000);
+        map.once('style.load', () => { clearTimeout(to); res(); });
+        map.on('error', (e) => { if (e && e.error && /401|403|token/i.test(String(e.error.message || e.error.status))) { clearTimeout(to); rej(e.error); } });
+      });
+    } catch (e) {
+      map.remove(); // release its WebGL context and render loop before MapLibre takes over
+      throw e;
+    }
     // Re-assert the configuration property by property: older style revisions ignore
     // unknown keys in the constructor, and each call is harmless if a key is absent.
     for (const [k, v] of Object.entries({ ...STANDARD, lightPreset })) {

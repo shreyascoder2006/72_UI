@@ -24,21 +24,102 @@ browsers block local `fetch` there, so the map falls back to live OpenFreeMap ti
 
 `python3 tools/build_dist.py` produces `dist/index.html`, a single page with all CSS and JavaScript
 inlined, plus `dist/data/bundles/`: the tiles and glyphs packed as base64 JSON for hosts that only
-serve text and web media types. It runs under a strict Content-Security-Policy (`connect-src
-'self'`, scripts only from cdnjs) and is what the published artifact is built from.
+serve text and web media types, and `dist/data/models/`: the hero models as base64 JSON with their
+texture images. It runs under a strict Content-Security-Policy (`connect-src 'self'`, scripts only
+from cdnjs and cdn.jsdelivr.net) and is what the published artifact is built from.
 
 ### Renderer: Mapbox GL JS or MapLibre GL JS
 
 The map code is written against the Mapbox GL JS API (`Map`, `Marker`, `fill-extrusion`, `flyTo`,
-`addSource`/`addLayer`, canvas sources).
+`addSource`/`addLayer`, canvas sources, custom layers).
 
-- **Mapbox GL JS v3:** set `mapboxToken` in `config.js` to a Mapbox public token. The twin then
-  loads Mapbox GL JS v3, restyles `dark-v11` and extrudes buildings from Mapbox Streets. This path
-  could not be tested here because no token was available. If the token is rejected, the app falls
-  back to MapLibre automatically.
 - **MapLibre GL JS 4.7 (default):** the open-source continuation of Mapbox GL JS with the same
   API. It renders the OpenStreetMap vector tiles shipped in `data/tiles` through a `twin://`
   protocol, so the twin works offline and inside sandboxed frames that block third-party requests.
+  This is the path the realism work below was built and tested on.
+- **Mapbox GL JS v3:** set `mapboxToken` in `config.js` to a Mapbox public token. The twin then
+  loads the Mapbox Standard style with Mapbox's own 3D buildings, landmarks and trees, pulls its
+  palette toward the dark command-center look (`setConfigProperty` on the `basemap` import) and
+  switches its light preset (dawn, day, dusk, night) as the timeline is scrubbed. The hero models
+  go into Standard's `middle` slot and the dependency arcs and radar into `top`. If the token is
+  rejected or the style does not load within 15 s, the failed map is removed and the app falls
+  back to MapLibre.
+  **Untested:** no valid token was available while this was built. Only the fallback has run (an
+  invalid token gets a 401 on the style and the app comes up on MapLibre); Standard itself, the
+  `setConfigProperty` keys, the light preset switching and the slot placement have not.
+  **Known limitation:** Standard's buildings come from Mapbox's own tiles and cannot be clipped,
+  so at a hero site the Mapbox building and the hero model overlap. The OSM footprint swap
+  described below only works on MapLibre.
+
+## Realism pipeline (MapLibre)
+
+The city is drawn in three layers that share one sun, computed from the simulation clock
+(`core.sunPosition`, NOAA low-precision ephemeris; T+0 is Sat 24 Oct 2026 00:00 EDT, live is T+34.5).
+Scrubbing the timeline moves the sun, the sky, the haze and every shadow.
+
+1. **City buildings** (`src/js/map/buildings.js`): a WebGL2 custom layer that decodes the building
+   layer of every z13+ tile MapLibre loads and meshes it: walls and flat roofs from the footprint
+   (earcut), gable roofs fitted to the oriented bounding box of small houses. A procedural shader
+   draws facades in world metres per building class (punched windows, ribbon glazing, curtain
+   walls, storefronts, ribbed industrial cladding), roofing (shingle courses, membrane, rooftop
+   plant), sky reflections and sun glints in glass, and lit windows at night that fade to a dim
+   average once they are smaller than a couple of pixels. Each wall carries its direction in its
+   vertex data, so the window grid stays exact up close. A sun shadow map (4096², 2048² on
+   software rasterisers) is re-rendered only when the sun, the shadow region or the drawn tiles
+   change, and shades the buildings and a ground quad. Without WebGL2 or local tiles, or if the
+   driver rejects its shaders, it steps aside and the style's fill-extrusions show.
+2. **Hero models** (`src/js/map/heroes.js`): a Three.js layer (three@0.160.0, imported from
+   cdn.jsdelivr.net on first use) that shows a detailed glTF model of the selected facility, with a
+   ground ring and halo in its risk colour, sun-matched lighting and its own shadows. The OSM
+   footprints under each hero site are lifted out of the tiles (`geodata.sites`) and hidden while
+   the model stands there, in both the city-building layer and the fill-extrusion fallback. Models
+   exist for hospitals, EMS stations, the pumping station, substations, traffic sites and the
+   weather station (on its roof at 13.5 m); stream and culvert gauges keep their marker only.
+3. **Basemap and sky** (`src/js/map/style.js`): the dark CIM palette, a sky and horizon haze per
+   day phase, and the MapLibre light following the sun.
+
+Configuration (`config.js`): `cityBuildings: false` keeps the fill-extrusions, `buildingShadows:
+false` drops the shadow map, `shadowSize` overrides its size.
+
+Frame times downtown (1600×900, zoom 16.4, pitch 60, about 250k triangles; `node tools/test/perf.js
+<url> [gpu]`; medians over several runs on a laptop, so the ranges are mostly machine load):
+
+| | City buildings + shadows | City buildings, no shadows | Fill-extrusion fallback |
+| --- | --- | --- | --- |
+| Intel integrated GPU (D3D11) | 25–55 ms | 25–45 ms | 16–36 ms |
+| SwiftShader (headless, software) | 0.84–1.15 s | 0.82–1.0 s | 0.49–0.81 s |
+
+On a GPU the shadow pass costs little: it runs once per camera move or sun step (0 times across
+static frames, `stats.shadowPasses`), not every frame.
+
+### Provenance and honesty notes
+
+- **Building classes and heights are estimates.** `tools/enrich_buildings.py` classifies each
+  building by the OSM land-use polygon its centroid falls in and, where OSM has no height tag (most
+  of Raleigh), infers one from footprint area and class (`inferred = 1` in the tiles). Explicit OSM
+  heights are kept. Facade style, window rhythm and roof shape follow from those estimates, not
+  from surveys or imagery.
+- **The hero models are authored, not downloaded.** No realistic, CC0-licensed models of these
+  facilities (or of generic ones at the needed detail) could be downloaded, so they were built at
+  real scale in code (`tools/models/facility_models.js`). They are representative of each facility
+  type, not replicas of the real buildings. Two sites overlap a neighbouring OSM building that was
+  not lifted out of the tiles: the north edge of the Duke Raleigh Hospital model and one corner of
+  the Lake Boone pumping station yard.
+- **Textures:** Poly Haven PBR sets (CC0): asphalt_02, bitumen, brick_wall_10, concrete_floor_02,
+  concrete_pavement, concrete_slab_wall, concrete_wall_008, corrugated_iron, factory_brick, gravel,
+  leafy_grass, painted_metal_shutter, red_brick_03, sparse_grass, white_plaster_02. The `gen_*.png`
+  decals (helipad, emergency and EMS signs, chain-link) are drawn by the build page.
+
+### Rebuilding the models
+
+```bash
+node tools/models/export_models.js preview/   # needs Playwright + Chromium and cdn.jsdelivr.net
+```
+
+It opens `tools/models/build.html` in headless Chromium, builds each model with three.js, writes
+`data/models/*.glb` (and optional preview renders), then `externalize.py` points the glTF images at
+the shared files in `data/models/textures/`. `tools/build_dist.py` wraps them as base64 JSON for
+single-page builds (`modelBundles`).
 
 ## What is real and what is modeled
 
@@ -110,10 +191,19 @@ areas.
 node tools/test/engine_probe.js tropical          # engine timeline, learning, validation
 node tools/test/interventions_probe.js            # counterfactual planner
 node tools/test/smoke.js http://localhost:8000/ out/   # headless browser run (Playwright)
+node tools/test/heroes.js http://localhost:8000/ out/  # each hero model, plus dawn/noon/dusk/night
+node tools/test/shot.js http://localhost:8000/ out/ '[{"time":37},{"shot":"noon"}]'  # scripted views
+node tools/test/perf.js http://localhost:8000/ gpu     # frame times downtown
 python3 tools/test/csp_server.py 8766             # serve dist/ under a strict CSP
 ```
+
+The browser tests launch Chromium on SwiftShader (software GL), where a frame of the city takes
+close to a second; `interactions.js` can time out on its phone step there, with or without the
+city-building renderer. On a machine with a GPU, drop the SwiftShader flags. On Windows,
+`python -m http.server` occasionally refuses one of the page's parallel script requests (its
+listen backlog is 5), which leaves the page on its loading screen; reload or use another server.
 
 ## Attribution
 
 Map data © OpenStreetMap contributors (ODbL) · tiles © OpenMapTiles, served by OpenFreeMap ·
-rendering by MapLibre GL JS (BSD-3).
+rendering by MapLibre GL JS (BSD-3) and three.js (MIT) · earcut (ISC) · textures by Poly Haven (CC0).

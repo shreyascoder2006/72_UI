@@ -13,18 +13,21 @@ const { chromium } = require('playwright');
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));
+  // Poll with evaluate: waitForFunction compiles its predicate with eval, which a strict
+  // CSP (the single-page build under tools/test/csp_server.py) refuses.
+  const until = async (fn, arg, ms) => { const t = Date.now(); while (Date.now() - t < ms) { if (await page.evaluate(fn, arg)) return; await page.waitForTimeout(250); } throw new Error('timed out'); };
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 90000 });
+  await until(() => !document.getElementById('loading'), null, 90000);
   await page.waitForTimeout(3500);
-  const idle = () => page.evaluate(() => new Promise((r) => { const m = TWIN.app.map; if (m.loaded() && m.areTilesLoaded()) r(); else m.once('idle', r); setTimeout(r, 8000); }));
-  const list = names.length ? names : ['Duke Raleigh Hospital', 'Wake County EMS Station 2', 'Lake Boone Pumping Station', 'Warehouse District Substation', 'Capital Blvd', 'Downtown'];
+  const idle = () => page.evaluate(() => new Promise((r) => { const m = TWIN.app.map; const done = () => (TWIN.app.buildings && TWIN.app.buildings.stats.queued) ? setTimeout(done, 200) : r(); if (m.loaded() && m.areTilesLoaded()) done(); else m.once('idle', done); setTimeout(r, 20000); }));
+  const list = names.length ? names : ['Duke Raleigh Hospital', 'Wake County EMS Station 2', 'Lake Boone Pumping Station', 'Warehouse District Substation', 'Capital Blvd at Peace St', 'Weather Station, Nash Square'];
   let first = true;
   for (const name of list) {
     const i = await page.evaluate((n) => TWIN_GEO.facilities.findIndex((f) => f.name.includes(n)), name);
     if (i < 0) { console.log('not found:', name); continue; }
     const t0 = Date.now();
     await page.evaluate((k) => TWIN.app.select(k, { fly: true }), i);
-    await page.waitForFunction((k) => TWIN.app.heroes.active === k, i, { timeout: 60000 }).catch(() => console.log('hero not active:', name));
+    await until((k) => TWIN.app.heroes.active === k, i, 60000).catch(() => console.log('hero not active:', name));
     await page.waitForTimeout(1500);
     await idle();
     const f = await page.evaluate((k) => { const f = TWIN_GEO.facilities[k]; return { name: f.name, type: f.type, subtype: f.subtype, model: TWIN.heroes.MODEL_OF(f), zoom: TWIN.app.map.getZoom().toFixed(2) }; }, i);

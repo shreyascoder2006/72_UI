@@ -22,7 +22,8 @@ const { chromium } = require('playwright');
     renderer: TWIN.app.tm.renderer,
     layers: TWIN.app.map.getStyle().layers.length,
     tilesLoaded: TWIN.app.map.areTilesLoaded(),
-    buildings: TWIN.app.map.queryRenderedFeatures({ layers: ['building-3d'] }).length,
+    // City-building renderer stats, or the fill-extrusion fallback's rendered features.
+    buildings: TWIN.app.buildings ? TWIN.app.buildings.stats : TWIN.app.map.queryRenderedFeatures({ layers: ['building-3d'] }).length,
     flows: TWIN.app.map.getSource('flows')._data.features.length,
     alerts: document.querySelectorAll('.alert').length,
     crit: document.getElementById('assetCrit').textContent,

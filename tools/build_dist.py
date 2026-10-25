@@ -16,6 +16,8 @@ import json
 import os
 import re
 import shutil
+import stat
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
@@ -25,6 +27,12 @@ MAPLIBRE = "https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl
 def read(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
         return fh.read()
+
+
+def _clear_readonly(func, path, _exc):
+    # Windows refuses to delete read-only entries (OneDrive marks synced folders that way).
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 
 def block(html, name):
@@ -65,7 +73,7 @@ def main():
 
     data_out = os.path.join(DIST, "data")
     if os.path.exists(data_out):
-        shutil.rmtree(data_out)
+        shutil.rmtree(data_out, **({"onexc": _clear_readonly} if sys.version_info >= (3, 12) else {"onerror": _clear_readonly}))
     out = os.path.join(data_out, "bundles")
     os.makedirs(out)
     index = {"tiles": {}, "fonts": {}, "bundles": {}}

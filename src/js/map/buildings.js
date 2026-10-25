@@ -113,7 +113,11 @@
 
   // ── Mesh building ──────────────────────────────────────────────────────────
   // Vertex: position in tile units (float32 x2) + [z, base, eave, info] (uint16 x4,
-  // heights in decimetres). info = class | variant << 3 | roofKind << 8.
+  // heights in decimetres). info = class | variant << 3 | roofKind << 8 | wallDir << 9.
+  // wallDir (0–127 over 180°) is set on the bottom vertex that starts each wall, which is
+  // the last (provoking) vertex of both of that wall's triangles, so the flat varying gives
+  // every facade fragment one exact direction. Screen-space derivatives jitter up close,
+  // and that jitter times positions kilometres from the origin scrambles the window grid.
   function MeshBuilder() {
     let pos = new Float32Array(1 << 15), dat = new Uint16Array(1 << 16), idx = new Uint32Array(1 << 16);
     let nv = 0, ni = 0;
@@ -170,6 +174,14 @@
 
   // Edges along the tile border are clipping artefacts, not walls (E null: never).
   const isBoundary = (x1, y1, x2, y2, E) => E != null && ((x1 === x2 && (x1 <= 0 || x1 >= E)) || (y1 === y2 && (y1 <= 0 || y1 >= E)));
+  // Wall direction bits for info (tile y points south, world y north).
+  function wallBits(x1, y1, x2, y2) {
+    let a = Math.atan2(y1 - y2, x2 - x1);
+    if (a < 0) a += Math.PI;
+    return (Math.round((a / Math.PI) * 128) % 128) << 9;
+  }
+  // A wall quad as two triangles that both end on bot[i] (see MeshBuilder).
+  const wall = (M, bi, bj, ti, tj) => { M.t(bj, tj, bi); M.t(tj, ti, bi); };
 
   // Add one building polygon (rings in tile units, open) to the mesh.
   // g = [x0, y0, scale]: tile units → global z14 units, for a per-building variant.
@@ -197,15 +209,15 @@
       if (flat.length) holes.push(flat.length / 2);
       const n = r.length / 2, bot = [], top = [];
       for (let i = 0; i < n; i++) {
-        const x = r[i * 2], y = r[i * 2 + 1];
-        bot.push(M.v(x, y, H0, H0, H, info));
+        const x = r[i * 2], y = r[i * 2 + 1], j = (i + 1) % n;
+        bot.push(M.v(x, y, H0, H0, H, info | wallBits(x, y, r[j * 2], r[j * 2 + 1])));
         top.push(M.v(x, y, H, H0, H, info));
         flat.push(x, y);
       }
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         if (isBoundary(r[i * 2], r[i * 2 + 1], r[j * 2], r[j * 2 + 1], E)) continue;
-        M.t(bot[i], bot[j], top[j]); M.t(bot[i], top[j], top[i]);
+        wall(M, bot[i], bot[j], top[i], top[j]);
       }
       tops.push(...top);
     }
@@ -237,13 +249,17 @@
     }
     const zOf = (d) => ridge - rise * Math.min(1, Math.abs(d) / half);
     const m = pts.length, bot = [], top = [];
-    for (const [x, y, d] of pts) { bot.push(M.v(x, y, H0, H0, eave, info)); top.push(M.v(x, y, zOf(d), H0, eave, info)); }
+    for (let i = 0; i < m; i++) {
+      const [x, y, d] = pts[i], b = pts[(i + 1) % m];
+      bot.push(M.v(x, y, H0, H0, eave, info | wallBits(x, y, b[0], b[1])));
+      top.push(M.v(x, y, zOf(d), H0, eave, info));
+    }
     for (let i = 0; i < m; i++) {
       const j = (i + 1) % m;
       const a = pts[i], b = pts[j];
       // Boundary edges are only skipped between original vertices.
       if (a[3] >= 0 && b[3] >= 0 && isBoundary(a[0], a[1], b[0], b[1], E)) continue;
-      M.t(bot[i], bot[j], top[j]); M.t(bot[i], top[j], top[i]);
+      wall(M, bot[i], bot[j], top[i], top[j]);
     }
     for (const side of [1, -1]) {
       const sel = [];
@@ -345,6 +361,10 @@ uniform sampler2DShadow u_shadow;
 out vec4 fragColor;
 
 float h12(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h12(i), h12(i + vec2(1.0, 0.0)), f.x), mix(h12(i + vec2(0.0, 1.0)), h12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 // Anti-aliased box: 1 inside [a, b] of a repeating cell coordinate t (cells of 1).
@@ -383,7 +403,7 @@ void main() {
   float info = v_data.z;
   int cls = int(mod(info, 8.0));
   float variant = floor(mod(info / 8.0, 32.0));
-  bool pitched = info >= 256.0;
+  bool pitched = mod(floor(info / 256.0), 2.0) > 0.5;
   float base = v_data.x, eave = v_data.y;
   float hb = v_world.z - base;
   float seed = variant * 7.31 + float(cls) * 3.7;
@@ -406,21 +426,38 @@ void main() {
       vec3 rf[4] = vec3[4](vec3(0.50,0.51,0.50), vec3(0.36,0.37,0.36), vec3(0.22,0.23,0.24), vec3(0.58,0.59,0.58));
       albedo = rf[int(mod(variant, 4.0))];
       if (cls == 0) albedo *= 0.7;
-      vec2 rc = v_world.xy / 4.0, rw = fwidth(rc);
-      albedo *= 1.0 + (h12(floor(rc)) - 0.5) * 0.07 * (1.0 - smoothstep(0.3, 0.8, max(rw.x, rw.y)));
-      // Rooftop plant on larger buildings.
+      // Weathering: smooth patches at two scales, offset per building so roofs differ.
+      vec2 rp = v_world.xy + seed * 13.7;
+      float rw = fwidth(rp.x);
+      float n = vnoise(rp / 11.0) * 0.6 + vnoise(rp / 3.1) * 0.4 * (1.0 - smoothstep(0.4, 1.2, rw));
+      albedo *= 0.9 + 0.2 * n;
+      // Rooftop plant on larger buildings: units of varied size and placement in cells of a
+      // per-building size, each with a short shadow away from the sun; small vents between.
       if (eave - base > 7.0) {
-        vec2 c6 = v_world.xy / 7.0; vec2 id = floor(c6), f = fract(c6);
-        float has = step(0.86, h12(id + 17.0));
-        float w = fwidth(c6.x);
-        float unit = band(f.x, 0.3, 0.62, w) * band(f.y, 0.35, 0.58, w);
-        albedo = mix(albedo, vec3(0.30, 0.31, 0.32), has * unit * (1.0 - smoothstep(0.1, 0.3, w)));
+        float cs = 6.0 + mod(variant, 4.0);
+        vec2 c6 = rp / cs; vec2 id = floor(c6), f = fract(c6);
+        float r1 = h12(id + 17.0), r2 = h12(id * 1.31 + 4.1), r3 = h12(id * 0.77 + 9.3);
+        vec2 sz = vec2(0.2 + 0.32 * r2, 0.16 + 0.28 * r3);
+        vec2 o = vec2(0.08 + (0.84 - sz.x) * r3, 0.08 + (0.84 - sz.y) * r2);
+        float w = fwidth(c6.x), fade = 1.0 - smoothstep(0.1, 0.3, w);
+        float has = step(0.82, r1) * fade;
+        float unit = band(f.x, o.x, o.x + sz.x, w) * band(f.y, o.y, o.y + sz.y, w);
+        vec2 sd = -u_sunDir.xy / max(u_sunDir.z, 0.35) * 1.4 / cs;
+        float drop = band(f.x - sd.x, o.x, o.x + sz.x, w) * band(f.y - sd.y, o.y, o.y + sz.y, w);
+        albedo *= 1.0 - 0.45 * has * drop * (1.0 - unit) * clamp(u_sun.g, 0.0, 1.0);
+        albedo = mix(albedo, vec3(0.52, 0.53, 0.54), has * unit);
+        vec2 c2 = rp / 2.3 + 0.5; vec2 f2 = fract(c2); float w2 = fwidth(c2.x);
+        float vent = step(0.965, h12(floor(c2) + 3.3)) * band(f2.x, 0.36, 0.64, w2) * band(f2.y, 0.36, 0.64, w2);
+        albedo = mix(albedo, albedo * 1.25, vent * (1.0 - smoothstep(0.2, 0.5, w2)) * (1.0 - has * unit));
       }
     }
   } else {
-    // ── Facade ──
+    // ── Facade ── (direction and normal from the wall's flat direction bits)
     albedo = wall;
-    vec2 dir = normalize(vec2(-N.y, N.x) + 1e-5);
+    float th = floor(info / 512.0) * (3.14159265 / 128.0);
+    vec2 dir = vec2(cos(th), sin(th));
+    N = vec3(dir.y, -dir.x, 0.0);
+    if (dot(N, V) < 0.0) N = -N;
     float u = dot(v_world.xy, dir);
     float top = eave - base;
     float fh = 3.0, colW = 3.2, wx0 = 0.32, wx1 = 0.68, wy0 = 0.3, wy1 = 0.78, gf = 0.0;
@@ -454,9 +491,8 @@ void main() {
       float cu = u / 3.0, cw = fwidth(cu);
       win = band(t, 0.0, 1.0, fwidth(t)) * band(fract(cu), 0.08, 0.92, cw);
       cell = vec2(floor(cu), 99.0);
-      far = smoothstep(0.25, 0.6, max(cw, fwidth(t)));
+      far = smoothstep(0.35, 0.8, max(cw, fwidth(t)));
       cover = 0.12;
-      win = mix(win, cover, far);
       float du = fract(u / 14.0), dw = fwidth(u / 14.0);
       float door = band(du, 0.4, 0.68, dw) * (1.0 - smoothstep(4.3, 4.3 + fwidth(hb), hb)) * step(top, 12.0) * step(0.5, h12(vec2(floor(u / 14.0), variant)));
       albedo = mix(albedo, albedo * 0.55, door);
@@ -475,12 +511,12 @@ void main() {
       frame = band(fract(cu), x0 - 0.035, x1 + 0.035, wu) * band(fy, y0 - 0.04, y1 + 0.04, wv) - win;
       if (ribbon) frame = max(frame, band(fract(u / 1.5), 0.0, 0.05, fwidth(u / 1.5)) * win);
       cell = vec2(floor(cu), fl);
-      // Far away, fade the pattern into its average.
-      far = smoothstep(0.25, 0.6, max(wu, wv));
+      // Once windows shrink below a couple of pixels the pattern fades into its average.
+      far = smoothstep(0.35, 0.8, max(wu, wv));
       cover = (x1 - x0) * (y1 - y0) * 0.9;
-      win = mix(win, cover, far);
       frame *= 1.0 - far;
     }
+    glass = mix(win, cover, far);
     // Glass: dark interior, sky reflection, sun glint, lit rooms at night.
     vec3 R = reflect(-V, N);
     float F = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
@@ -489,11 +525,11 @@ void main() {
     vec3 interior = lin(vec3(0.10, 0.12, 0.14)) * (0.7 + 0.6 * rnd);
     vec3 glassCol = interior * (1.0 - F) + env * (0.18 + 0.82 * F);
     glassCol += u_sun * pow(max(dot(R, u_sunDir), 0.0), 220.0) * 3.0 * F;
-    // Lit rooms: per window up close, their average share far away (no sparkle).
-    float on = mix(step(h12(cell * vec2(2.3, 1.9) + seed * 1.3), lit) * (0.55 + 0.6 * h12(cell + 2.1)), lit * 0.85, far) * u_night;
-    vec3 warm = mix(vec3(1.0, 0.72, 0.42), vec3(0.85, 0.9, 1.0), mix(step(0.8, h12(cell + 5.3)), 0.2, far));
-    emit = warm * on * win * 0.9;
-    glass = win;
+    // Lit rooms: per window up close; far away a dim average, since a sparse scatter of lit
+    // windows reads darker than its mean and a uniform glow would read as a lit wall.
+    float onC = step(h12(cell * vec2(2.3, 1.9) + seed * 1.3), lit) * (0.55 + 0.6 * h12(cell + 2.1));
+    vec3 warmC = mix(vec3(1.0, 0.72, 0.42), vec3(0.85, 0.9, 1.0), step(0.8, h12(cell + 5.3)));
+    emit = mix(warmC * onC * win, vec3(0.97, 0.76, 0.52) * lit * 0.85 * cover * 0.4, far) * 0.9 * u_night;
     albedo = mix(albedo, albedo * 0.6, clamp(frame, 0.0, 1.0));
     // Lit glass is handled as emission + reflection below.
     vec3 Lw = normalize(u_sunDir);
@@ -606,10 +642,10 @@ void main() {
     const oy = (1 - Math.asinh(Math.tan(lat0)) / Math.PI) / 2;
     const meshes = new Map(); // "z/x/y" → mesh
     const queue = [];
-    let sites = [], hiddenSite = -1, version = 0;
+    let sites = [], hiddenSite = -1;
     let gl = null, prog = null, depthProg = null, groundProg = null, groundBuf = null, groundVao = null;
     let fbo = null, depthTex = null, shadowSize = SHADOW_SIZE;
-    let light = null, lightKey = '', shadowOn = false, frameTiles = [];
+    let light = null, lightKey = '', shadowOn = false, frameTiles = [], frameSig = '', shadowPasses = 0;
     let sun = { dir: [0.3, -0.6, 0.74], color: [2.2, 2.1, 1.95], sky: [0.3, 0.34, 0.4], ground: [0.1, 0.09, 0.08], zenith: [0.04, 0.07, 0.12], horizon: [0.2, 0.25, 0.3], fog: [0.1, 0.12, 0.15], night: 0, exposure: 0.8, shadow: 0.45 };
 
     // Mesh tiles a few at a time so loading never blocks a frame for long.
@@ -621,19 +657,13 @@ void main() {
         const t0 = performance.now();
         while (queue.length && performance.now() - t0 < 10) {
           const [key, buf] = queue.shift();
-          try { const m = meshTile(key, buf); if (m) { meshes.set(key, m); version++; } } catch (e) { console.warn('building mesh failed', key, e); }
+          try { const m = meshTile(key, buf); if (m) meshes.set(key, m); } catch (e) { console.warn('building mesh failed', key, e); }
         }
         map.triggerRepaint();
         if (queue.length) setTimeout(step, 0); else pumping = false;
       };
       setTimeout(step, 0);
     }
-    tm.onTile((key, buf) => {
-      if (meshes.has(key) || queue.some((q) => q[0] === key)) return;
-      queue.push([key, buf]);
-      pump();
-    });
-    sites = meshSites(geo);
 
     function compile(vs, fs) {
       const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
@@ -700,7 +730,8 @@ void main() {
       const b = map.getBearing() * Math.PI / 180, fwd = R * 0.35 * Math.min(1, map.getPitch() / 50);
       const px = cx + Math.sin(b) * fwd, py = cy + Math.cos(b) * fwd;
       const L = sun.dir;
-      const key = [Math.round(px / (R / 64)), Math.round(py / (R / 64)), Math.round(R), L.map((v) => v.toFixed(3)).join(','), version, hiddenSite].join('|');
+      // Re-render the shadow map only when the region, the sun or the drawn tiles change.
+      const key = [Math.round(px / (R / 64)), Math.round(py / (R / 64)), Math.round(R), L.map((v) => v.toFixed(3)).join(','), frameSig].join('|');
       if (key === lightKey && light) return light;
       lightKey = key;
       // View basis: forward = -L, up = projection of north (or east) onto the view plane.
@@ -762,9 +793,11 @@ void main() {
         if (!shadowOn) return;
         ensureShadowTarget();
         if (!fbo) { shadowOn = false; return; }
+        frameSig = frameTiles.map((m) => m.fi != null ? 's' + m.fi : m.z + '/' + m.x + '/' + m.y).join(',');
         const L = lightMatrix();
         if (!L.dirty) return;
         L.dirty = false;
+        shadowPasses++;
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
         gl.viewport(0, 0, shadowSize, shadowSize);
         gl.colorMask(false, false, false, false);
@@ -864,7 +897,20 @@ void main() {
       return [0, 1, 2, 3].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]);
     }
 
-    map.addLayer(layer, map.getLayer('building-3d') ? 'building-3d' : undefined);
+    try {
+      map.addLayer(layer, map.getLayer('building-3d') ? 'building-3d' : undefined);
+    } catch (e) {
+      // A driver that rejects the shaders keeps the style's fill-extrusion buildings.
+      console.warn('City buildings unavailable:', e && e.message ? e.message : e);
+      if (map.getLayer(layer.id)) map.removeLayer(layer.id);
+      return null;
+    }
+    tm.onTile((key, buf) => {
+      if (meshes.has(key) || queue.some((q) => q[0] === key)) return;
+      queue.push([key, buf]);
+      pump();
+    });
+    sites = meshSites(geo);
     for (const id of FILL_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     root.TWIN.style.BUILDING_LAYERS.splice(0, Infinity, 'building-ao', 'city-buildings');
 
@@ -891,11 +937,12 @@ void main() {
         color: sunC.map((v) => v * sunI),
         sky: mix([0.012, 0.016, 0.028], mix([0.30, 0.35, 0.42], [0.32, 0.27, 0.30], warm), day),
         ground: mix([0.006, 0.006, 0.008], [0.11, 0.10, 0.09], day),
-        zenith: zen.map((v) => v * 1.4), horizon: hor.map((v) => v * 1.3),
+        zenith: zen.map((v) => v * 2.4), horizon: hor.map((v) => v * 2.2),
         fog: hor.map((v) => v * 0.9),
         night: 1 - smooth(-8, 6, el),
-        exposure: 0.62 + 0.3 * (1 - day),
-        shadow: up ? 0.5 * smooth(0, 8, el) : 0,
+        // Muted daylight next to the dark basemap; night opens up for the lit windows.
+        exposure: 0.36 + 0.46 * (1 - day),
+        shadow: up ? 0.62 * smooth(0, 8, el) : 0,
       };
       lightKey = '';
       map.triggerRepaint();
@@ -905,7 +952,7 @@ void main() {
     return {
       hideSite(i) { hiddenSite = i == null ? -1 : i; lightKey = ''; map.triggerRepaint(); },
       get tiles() { return meshes.size; },
-      get stats() { let tris = 0; for (const m of frameTiles) tris += m.ni / 3; return { tiles: frameTiles.length, tris: Math.round(tris), meshed: meshes.size, queued: queue.length }; },
+      get stats() { let tris = 0; for (const m of frameTiles) tris += m.ni / 3; return { tiles: frameTiles.length, tris: Math.round(tris), meshed: meshes.size, queued: queue.length, shadows: shadowOn ? shadowSize : 0, shadowPasses }; },
     };
   }
 

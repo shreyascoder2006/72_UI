@@ -24,7 +24,7 @@ const { chromium } = require('playwright');
       await page.evaluate((n) => { const i = TWIN_GEO.facilities.findIndex((f) => f.name.includes(n)); TWIN.app.select(i, { fly: true }); }, s.select);
       await page.waitForTimeout(2600);
     }
-    if (s.camera) await page.evaluate((c) => TWIN.app.map.jumpTo(c), s.camera);
+    if (s.camera) await page.evaluate((c) => { TWIN.app.map.stop(); TWIN.app.map.jumpTo(c); }, s.camera);
     if (s.eval) console.log(JSON.stringify(await page.evaluate(s.eval)));
     if (s.clip) clip = s.clip.length ? { x: s.clip[0], y: s.clip[1], width: s.clip[2], height: s.clip[3] } : null;
     if (s.wait) await page.waitForTimeout(s.wait);
