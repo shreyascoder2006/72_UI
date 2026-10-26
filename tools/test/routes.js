@@ -113,6 +113,16 @@ const { chromium } = require('playwright');
   check('Warnings issues CAP, SMS per language and a situation report',
     wn.phones >= 2 && wn.segs.some((t) => /GSM-7/.test(t)) && wn.cap.startsWith('<?xml')
     && wn.sitrep.includes('SITUATION REPORT') && wn.exercise, wn);
+  // Selecting another alert regenerates its CAP and keeps it in the link; no map engine.
+  const wsel = await page.evaluate(() => {
+    const items = [...document.querySelectorAll('.wn-qi')];
+    const target = items[items.length - 1];
+    if (!target) return { none: true };
+    target.click();
+    const id = target.dataset.alert;
+    return { id, hash: location.hash, cap: (document.querySelector('.wn-cap pre') || {}).textContent.includes(id), canvas: document.querySelectorAll('#page canvas').length, cov: !!document.querySelector('.wn-map .wn-foot-s') };
+  });
+  check('Warnings: selecting an alert updates its CAP, map and link', wsel.none || (new RegExp(`c=${wsel.id}`).test(wsel.hash) && wsel.cap && wsel.cov && wsel.canvas === 0), wsel);
 
   await click('#nav a[data-nav="/area"]');
   await until(() => /#\/area/.test(location.hash) && !!document.querySelector('.ar-verdict'));

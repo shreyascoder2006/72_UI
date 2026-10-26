@@ -197,5 +197,6 @@
   T.site = {
     DEFAULT_CITY, LIVE_NOW, liveNowOf, resolve, nowOf, load, settle, clock, clockShort, href, show, header, timeLabel, provenance,
     busy, fail, toast, cityMap, esc, nextFrame,
+    projector, basemap, // for pages that draw their own SVG map (Warnings coverage)
   };
 })(typeof window !== 'undefined' ? window : globalThis);
