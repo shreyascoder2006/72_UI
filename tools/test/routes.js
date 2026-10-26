@@ -248,8 +248,23 @@ const { chromium } = require('playwright');
   await page.goto(base + '#/twin', { waitUntil: 'domcontentloaded' });
   await ready(); await settle();
   st = await state();
-  const ng = await page.evaluate(() => ({ title: document.getElementById('brandTitle').textContent, clock: document.getElementById('clockD').textContent, telecom: !!document.getElementById('ly-telecom'), options: document.getElementById('scenario').options.length }));
-  check('twin link without a city opens Nagpur on its own scenarios and clock', st.city === 'nagpur' && st.scenario === 'monsoon2023' && st.nowT >= 37 && st.nowT < 42 && /Nagpur/.test(ng.title) && /IST/.test(ng.clock) && ng.telecom && ng.options === 7 && /city=nagpur&s=monsoon2023/.test(st.hash), { st, ng });
+  // The menu is asserted against the service rather than against a fixed count, so
+  // growing the scenario catalogue cannot silently drop a city's scenarios from it.
+  const ng = await page.evaluate(() => {
+    const sel = document.getElementById('scenario');
+    const want = window.TWIN.services.scenariosFor('nagpur');
+    return {
+      title: document.getElementById('brandTitle').textContent, clock: document.getElementById('clockD').textContent,
+      telecom: !!document.getElementById('ly-telecom'),
+      options: sel.options.length, expected: want.length, first: sel.options[0] && sel.options[0].value,
+      nagpurOnly: want.filter((s) => s.cities && s.cities.length === 1 && s.cities[0] === 'nagpur').length,
+    };
+  });
+  check('twin link without a city opens Nagpur on its own scenarios and clock',
+    st.city === 'nagpur' && st.scenario === 'monsoon2023' && st.nowT >= 37 && st.nowT < 42
+    && /Nagpur/.test(ng.title) && /IST/.test(ng.clock) && ng.telecom
+    && ng.options === ng.expected && ng.first === 'monsoon2023' && ng.nagpurOnly >= 3
+    && /city=nagpur&s=monsoon2023/.test(st.hash), { st, ng });
   // The crisis pages follow the city; a crisis that is not in the registry says when it is.
   await page.evaluate(() => { location.hash = '#/crises/CR-NAG-5627?t=37'; });
   await pageReady();

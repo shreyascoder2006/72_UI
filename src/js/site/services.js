@@ -15,9 +15,12 @@
     return g;
   };
   // Scenarios a city can run: the ones written for it first, then the generic ones.
+  // City-specific scenarios lead, and the first is the city's default. `order` keeps a
+  // later-added set (the natural-calamity catalogue) below the originals, so growing the
+  // catalogue never moves the scenario a city opens on.
   const scenariosFor = (city) => Object.values(T.scenarios)
     .filter((s) => !s.cities || s.cities.includes(city))
-    .sort((a, b) => Number(!!b.cities) - Number(!!a.cities));
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || Number(!!b.cities) - Number(!!a.cities));
   const runs = (city, scenario) => scenariosFor(city).some((s) => s.id === scenario);
 
   function population(city) {
