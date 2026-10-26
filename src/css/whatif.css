@@ -1,0 +1,102 @@
+/* What-if simulator (#/whatif). Same tokens as the site; the graph builds step by step. */
+
+.wi-wrap { max-width: 1480px; padding-top: 18px; }
+.wi-head h1 { font-size: 26px; }
+.wi-head .pg-lede { margin-top: 6px; font-size: var(--fs-md); }
+
+.wi-form { display: grid; grid-template-columns: minmax(220px, 1.3fr) minmax(200px, 1fr) minmax(260px, 1.4fr) auto; gap: 12px 14px; align-items: end; margin-top: 14px; }
+.wi-field { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wi-field > label { font: 600 var(--fs-xs) / 1.2 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+.wi-field > label .faint { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.wi-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.04); color: var(--text-3); }
+.wi-search:focus-within { border-color: var(--accent-line); }
+.wi-search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; font-size: var(--fs-md); color: var(--text); }
+.wi-matches { position: absolute; z-index: 20; top: 64px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--panel-solid); box-shadow: var(--shadow); }
+.wi-matches button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 3px; text-align: left; color: var(--text); font-size: var(--fs-md); }
+.wi-matches button:hover, .wi-matches button:focus-visible { background: rgba(255, 255, 255, 0.07); }
+.wi-matches button span { color: var(--text-3); font-size: var(--fs-xs); }
+.wi-nohit { padding: 8px; color: var(--text-3); font-size: var(--fs-sm); }
+.wi-form .select select { height: 36px; max-width: none; width: 100%; border-radius: var(--radius); }
+.wi-magrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.wi-magrow input[type=number] { height: 36px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.04); color: var(--text); font: 500 var(--fs-md) var(--font-mono); }
+.wi-magrow input[type=range] { width: 100%; accent-color: var(--accent); }
+.wi-band { padding: 4px 8px; border-radius: 3px; font: 600 var(--fs-xs) / 1.2 var(--font-ui); letter-spacing: 0.06em; white-space: nowrap; cursor: help; border: 1px solid; }
+.wi-band.b0 { color: var(--watch); }
+.wi-band.b1 { color: var(--high); }
+.wi-band.b2, .wi-band.b3 { color: var(--crit); }
+.wi-band.b3 { background: var(--crit-dim); }
+.wi-go { height: 36px; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--accent-line); background: var(--accent-dim); color: var(--text); font-weight: 600; white-space: nowrap; }
+.wi-go:hover { background: rgba(121, 167, 227, 0.28); }
+.wi-presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wi-presets span { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-right: 4px; }
+.wi-presets button { height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--line-strong); color: var(--text-2); font-size: var(--fs-sm); }
+.wi-presets button:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
+.wi-main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; margin-top: 12px; align-items: stretch; }
+.wi-graph { overflow-x: auto; }
+.wi-svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.wi-stage { font: 600 10.5px var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; fill: var(--text-3); }
+.wi-node { cursor: pointer; transition: opacity 0.2s; }
+.wi-node rect:first-child { fill: var(--panel-solid); stroke: color-mix(in srgb, var(--sc) 55%, transparent); stroke-width: 1.2; }
+.wi-node:hover rect:first-child, .wi-node:focus-visible rect:first-child { stroke: var(--sc); stroke-width: 2; }
+.wi-node.on rect:first-child { stroke: var(--sc); stroke-width: 2.4; fill: color-mix(in srgb, var(--sc) 14%, var(--panel-solid)); }
+.wi-node:focus { outline: none; }
+.wi-node.dim { opacity: 0.35; }
+.wi-nl { font: 600 12px var(--font-ui); fill: var(--text); pointer-events: none; }
+.wi-nm { font: 500 10px var(--font-mono); fill: var(--text-3); pointer-events: none; }
+.wi-edge { fill: none; stroke: var(--text-4); stroke-width: 1.4; transition: opacity 0.2s; }
+.wi-edge.on { stroke: var(--accent); stroke-width: 2.2; }
+.wi-edge.dim { opacity: 0.25; }
+.wi-mk { fill: var(--text-4); }
+.wi-mk.on { fill: var(--accent); }
+/* The graph is drawn in the order the effects arise. */
+.wi-node.pop { opacity: 0; animation: wi-pop 0.35s var(--ease) forwards; }
+.wi-edge.grow { stroke-dasharray: 1; stroke-dashoffset: 1; animation: wi-grow 0.45s ease-out forwards; }
+@keyframes wi-pop { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wi-grow { to { stroke-dashoffset: 0; } }
+.wi-lk { display: inline-flex; align-items: center; gap: 5px; margin-right: 10px; }
+.wi-lk i { width: 10px; height: 10px; border-radius: 2px; }
+.wi-lk-n { color: var(--text-4); }
+
+.wi-insp { font-size: var(--fs-sm); min-height: 100%; max-height: 640px; overflow-y: auto; }
+.wi-sys { margin: 0; font: 600 var(--fs-xs) / 1.3 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; }
+.wi-insp h3 { margin: 6px 0 10px; font: 600 18px / 1.25 var(--font-cond); color: var(--text); }
+.wi-insp h4 { margin: 14px 0 6px; font: 600 var(--fs-xs) / 1.2 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+.wi-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.wi-facts div { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: var(--radius); background: var(--well); border: 1px solid var(--line); }
+.wi-facts span { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.wi-facts b { font: 600 15px / 1.2 var(--font-ui); color: var(--text); }
+.wi-facts small { font-weight: 400; color: var(--text-3); }
+.wi-desc, .wi-act { margin: 10px 0 0; line-height: 1.55; color: var(--text-2); }
+.wi-act { color: var(--text); }
+.wi-rel, .wi-sites { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.wi-rel li, .wi-sites li { display: flex; flex-direction: column; gap: 1px; }
+.wi-rel button { text-align: left; color: var(--accent); font-weight: 500; }
+.wi-rel span, .wi-sites span { font-size: var(--fs-xs); color: var(--text-3); }
+.wi-sites li { flex-direction: row; justify-content: space-between; gap: 8px; }
+.wi-sites a { color: var(--text); text-decoration: none; }
+.wi-sites a:hover { color: var(--accent); }
+
+.wi-pipe-card { margin-top: 12px; }
+.wi-pipe { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.wi-pipe li { display: grid; grid-template-columns: 70px 150px minmax(0, 1fr) 140px minmax(0, 0.8fr); gap: 12px; align-items: baseline; padding: 6px 8px; border-radius: 3px; cursor: pointer; font-size: var(--fs-sm); }
+.wi-pipe li:hover, .wi-pipe li.on { background: rgba(255, 255, 255, 0.05); }
+.wi-pipe li.on { box-shadow: inset 2px 0 0 var(--accent); }
+.wi-pt { color: var(--text); }
+.wi-ps { font: 600 var(--fs-xs) / 1.3 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; }
+.wi-pl { color: var(--text); }
+.wi-pp, .wi-pq { color: var(--text-3); font-size: var(--fs-xs); }
+.wi-note { margin: 12px 0 0; font-size: var(--fs-xs); line-height: 1.6; color: var(--text-3); max-width: 140ch; }
+.wi-note a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 1180px) {
+  .wi-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .wi-main { grid-template-columns: minmax(0, 1fr); }
+  .wi-insp { max-height: none; }
+}
+@media (max-width: 640px) {
+  .wi-form { grid-template-columns: minmax(0, 1fr); }
+  .wi-pipe li { grid-template-columns: 56px minmax(0, 1fr); gap: 2px 10px; }
+  .wi-ps, .wi-pq { grid-column: 2; }
+  .wi-pp { grid-column: 2; }
+}

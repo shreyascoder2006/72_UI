@@ -55,8 +55,8 @@ const { chromium } = require('playwright');
     groups: [...document.querySelectorAll('#nav .nav-group-title')].map((g) => g.textContent),
   }));
   check('sidebar lists the built features only, with live chips',
-    nav.items.join() === '/,/crises,/twin,/plan,/warnings,/area'
-    && nav.labels.join() === 'Situation,Crises,City twin,Response,Warnings,My area'
+    nav.items.join() === '/,/crises,/twin,/plan,/warnings,/whatif,/area'
+    && nav.labels.join() === 'Situation,Crises,City twin,Response,Warnings,What-if,My area'
     && !nav.planned.some((p) => nav.items.includes(p)) && nav.groups.join() === 'Operations,Public'
     && /NORMAL|WATCH|HIGH|CRITICAL/.test(nav.chips[0]), nav);
   // Collapsing leaves the icons and survives a reload; the rail is narrower.
@@ -254,6 +254,14 @@ const { chromium } = require('playwright');
   await ready(); await settle();
   st = await state();
   check('city change reloads into Raleigh', st.city === 'raleigh' && st.scenario === 'tropical', st);
+
+  // What-if: a calamity at a place builds a cascade graph with real sites attached.
+  await page.evaluate(() => { location.hash = '#/whatif'; });
+  await until(() => document.querySelectorAll('.wi-node').length > 0, null, 30000).catch(() => {});
+  await page.evaluate(() => document.querySelector('.wi-presets [data-preset="1"]').click());
+  await page.waitForTimeout(500);
+  const wi = await page.evaluate(() => ({ nodes: document.querySelectorAll('.wi-node').length, edges: document.querySelectorAll('.wi-edge').length, sum: document.getElementById('wiSum').textContent, sites: /site/.test(document.getElementById('wiGraph').textContent), maps: document.querySelectorAll('#page canvas').length }));
+  check('What-if builds an earthquake cascade graph with real sites', wi.nodes >= 8 && wi.edges >= 8 && /earthquake/i.test(wi.sum) && wi.sites && wi.maps === 0, wi);
 
   console.log('console errors:', errors.length ? '\n  ' + [...new Set(errors)].join('\n  ') : 'none');
   console.log(fails ? `${fails} check(s) failed` : 'all checks passed');

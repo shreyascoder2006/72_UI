@@ -49,6 +49,7 @@
       desc: 'Situation reports, CAP alerts and public SMS',
       chip: (L) => { const n = L.an.crises(L.k).list.length; return n ? { text: String(n) } : null; },
     },
+    { path: '/whatif', icon: 'whatif', label: 'What-if', group: 'Operations', live: true, desc: 'The chain of effects any event could set off, as a knowledge graph' },
     { path: '/redteam', icon: 'redteam', label: 'Red team', group: 'Assurance', phase: 5, desc: 'Attack the twin’s own inputs' },
     { path: '/method', icon: 'method', label: 'Method', group: 'Assurance', phase: 9, desc: 'How the forecast is made, and how it is scored' },
     {

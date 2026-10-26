@@ -70,6 +70,7 @@ icon rail, and below 960 px becomes an overlay.
 | City twin | `#/twin` | Free investigation in the same app: the full asset inventory, layers and alerts (collapsed until opened), the system cascade strip and the legend. The 3D operations room, with its own drawers for the learned dependency graph, the intervention planner and replay validation. With `c=<crisis id>` it draws every crisis footprint, frames the camera on that one and shows it in the breadcrumb. |
 | Response | `#/plan` | The action catalogue with what each action is worth alone, a crew budget, the planner's recommendation, a before/after ledger (critical facility-hours, hospital and EMS hours, P(a hospital goes critical), facilities reaching critical), what the plan costs elsewhere, and the **decision deadline**. |
 | Warnings | `#/warnings` | A plain-text situation report, an OASIS CAP 1.2 alert per crisis with one info block per city language, and the public cell-broadcast text as a handset receives it, with its GSM-7 / UCS-2 encoding and segment count. Everything is marked EXERCISE. |
+| What-if | `#/whatif` | Pick a place, an event (heavy rain, earthquake, hospital outbreak, heat wave, toxic gas release, grid failure, crowd surge) and its size; the page draws the chain of effects as a knowledge graph, stage by stage, with each effect's typical onset, likelihood, causes, what helps, and the real facilities, schools and pharmacies nearest the place. Built from a fixed knowledge base (`src/js/engine/whatif.js`) scaled by severity bands (IMD rainfall and heat-wave categories, USGS magnitude classes; the rest are the tool's own); template reasoning, not an engine forecast. It links to the engine's full scenario where one exists. |
 | My area | `#/area` | The forecast for one neighbourhood, phone-first. Search 120+ neighbourhood names or use the phone's location. You get a plain verdict with the rain now against the rain coming; how it reaches you (the hazard → drains → roads → power → phones → ambulance → hospital chain for the facilities that serve you, each with its time, likelihood and the learned link that carries it); nearby schools, colleges and pharmacies with whether their access is forecast to be cut; what to do and by when in the city's languages, with a message to share; today's real weather from Open-Meteo; the next 36 h per system; and roads to avoid. |
 
 **The decision deadline** is what a dashboard cannot show. `interventions.deadline(k, ids)`
@@ -334,7 +335,7 @@ src/js/site/               engine access for every page (services.js), shared co
                            (pages.js)
 src/js/views/              pages: twin.js (Situation at #/ and City twin at #/twin, one app),
                            board.js (#/crises), crises.js (#/crises/<id>), plan.js (#/plan),
-                           warnings.js (#/warnings), area.js (#/area)
+                           warnings.js (#/warnings), area.js (#/area), whatif.js (#/whatif)
 src/js/ui/outlook.js       Situation's outlook panel and its analytical panels
 src/js/data/geodata*.js    generated per city: facilities, routes, networks, population (from OSM)
 data/tiles, data/fonts     baked OpenMapTiles vector tiles and label glyphs
