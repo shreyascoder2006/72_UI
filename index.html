@@ -17,15 +17,40 @@
 <link rel="stylesheet" href="src/css/map.css">
 <link rel="stylesheet" href="src/css/nav.css">
 <link rel="stylesheet" href="src/css/pages.css">
+<link rel="stylesheet" href="src/css/outlook.css">
+<link rel="stylesheet" href="src/css/board.css">
 <!--/BUILD:HEAD-->
 </head>
 <body>
+<script>
+/* Startup guard: if a script fails to load or throws before the site has started, say so
+   on screen with a Reload button, rather than leaving a dark page. */
+(function () {
+  var shown = false, started = function () { return !!(window.TWIN && window.TWIN.router && window.TWIN.router.path); };
+  function show(msg) {
+    if (shown || started()) return;
+    shown = true;
+    var d = document.createElement('div');
+    d.setAttribute('role', 'alert');
+    d.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:999;max-width:760px;margin:0 auto;padding:14px 16px;border-radius:6px;background:#2a1215;border:1px solid #e5484d;color:#f3d6d7;font:14px/1.5 system-ui,sans-serif';
+    d.innerHTML = '<b>The page could not start.</b> ' + String(msg).replace(/[<>&]/g, '') + ' <button type="button" style="margin-left:8px;padding:4px 10px;border-radius:4px;border:1px solid #e5484d;background:none;color:inherit;cursor:pointer">Reload</button>';
+    d.querySelector('button').onclick = function () { location.reload(); };
+    document.body.appendChild(d);
+  }
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) show('A file did not load: ' + (t.src || t.href).replace(location.origin, '') + '. The local server may have dropped it.');
+    else if (e.message) show(e.message);
+  }, true);
+  setTimeout(function () { if (!started()) show('Nothing had started after 25 seconds.'); }, 25000);
+})();
+</script>
 
 <!-- The permanent left sidebar: every feature of the site (src/js/site/nav.js). -->
 <aside class="nav" id="nav" aria-label="Features"></aside>
 <div class="nav-scrim" id="navScrim"></div>
 
-<div class="app" id="app">
+<div class="app left-closed" id="app">
 
   <header class="topbar">
     <div class="brand">
@@ -86,7 +111,9 @@
     <section class="drawer valid glass" id="drawerValid" hidden aria-label="Temporal validation"></section>
   </div>
 
-  <aside class="left glass" aria-label="Assets, layers and alerts">
+  <aside class="outlook glass" id="outlook" aria-label="Situation outlook"></aside>
+
+  <aside class="left glass" id="leftPanel" aria-label="Assets, layers and alerts">
     <div class="left-head">
       <div class="count-line">
         <h2><span id="assetCount">44</span> Monitored assets</h2>
@@ -157,8 +184,12 @@
 <script src="src/js/engine/interventions.js"></script>
 <script src="src/js/engine/comms.js"></script>
 <script src="src/js/engine/analytics.js"></script>
+<script src="src/js/data/chronos.js"></script>
+<script src="src/js/data/places.js"></script>
+<script src="src/js/engine/second.js"></script>
 <script src="src/js/engine/population.js"></script>
 <script src="src/js/site/services.js"></script>
+<script src="src/js/site/search.js"></script>
 <script src="src/js/site/nav.js"></script>
 <script src="src/js/site/pages.js"></script>
 <script src="src/js/map/icons.js"></script>
@@ -177,15 +208,16 @@
 <script src="src/js/ui/inspector.js"></script>
 <script src="src/js/ui/timeline.js"></script>
 <script src="src/js/ui/drawers.js"></script>
+<script src="src/js/ui/outlook.js"></script>
 <script src="src/js/ui/app.js"></script>
 <script src="src/js/site/store.js"></script>
 <script src="src/js/site/router.js"></script>
 <script src="src/js/views/twin.js"></script>
 <script src="src/js/views/crises.js"></script>
+<script src="src/js/views/board.js"></script>
 <script src="src/js/views/plan.js"></script>
 <script src="src/js/views/warnings.js"></script>
 <script src="src/js/views/area.js"></script>
-<script src="src/js/views/overview.js"></script>
 <!--/BUILD:SCRIPTS-->
 </body>
 </html>

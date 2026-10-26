@@ -64,13 +64,13 @@ icon rail, and below 960 px becomes an overlay.
 
 | Page | Path | What it shows |
 | --- | --- | --- |
-| Situation | `#/` | The situation at the issue time in computed sentences; the predicted course (Cascade-R observed and forecast, and when each facility first crosses HIGH RISK and CRITICAL, by system); the crises in the registry; their footprints on a city map; the planner's recommended response within 5 crews. |
-| Crises | `#/crises` | The crisis registry with Cascade-R by system, footprints, couplings and contention between crises, and the registry as issued each hour up to the issue time. |
-| Crisis | `#/crises/<id>` | One crisis: how it began, its members and what drives each now, the order in which they cross HIGH RISK and CRITICAL (observed, then forecast with probability), the residents in its footprint (modeled), its history, and a link that opens it on the twin. |
-| City twin | `#/twin` | The 3D operations room, with its own drawers for the learned dependency graph, the intervention planner and replay validation. With `c=<crisis id>` it draws every crisis footprint, frames the camera on that one and shows it in the breadcrumb. |
+| Situation | `#/` | The briefing view of the same 3D twin (same map, timeline and inspector; no second renderer). The asset inventory gives way to an outlook panel with the city's state, a computed briefing, measures (critical now, forecast critical within 24 h, Cascade-R, modeled residents in high-risk areas now and in 24 h), risk by system with the next forecast CRITICAL crossing, and a prioritised list of crises and upcoming crossings. A strip above the map shows the next crossings in predicted order (observed solid, forecast dashed with probability), or "No cascade currently forecast". The camera frames the leading hazard; crisis footprints are on. Selecting an event selects the facility, moves the clock to it, pauses playback and opens the inspector, which links to the crisis, City twin and Response. Collapsible panels (predicted course, population exposure, highest-risk facilities, traffic and access, sensor evidence, the Chronos benchmark) appear only when the engine has data for them. |
+| Crises | `#/crises` | A board of linked views, independent of the 3D twin (no map, no renderer): Cascade-R with direct-hazard against through-link stress per system; the learned dependency network between systems or facilities (confirmed, candidate and pruned links, plus direct hazard forcing) with an inspector; a 72 h timeline (Cascade-R, or the selected facility's risk with its forecast 10–90% band, and the predicted threshold crossings); the registry, a system impact matrix (stress flowing now along learned links, system to system, derived from the facility links), critical facilities and recent sensor evidence. One selection drives every view; clicking the timeline moves the shared time; the selected crisis stays in the link (`c=`) for City twin and Response. |
+| Crisis | `#/crises/<id>` | One crisis: how it began, its members and what drives each now, the order in which they cross HIGH RISK and CRITICAL (observed, then forecast with probability), the residents near its members (modeled), its history, and links to the board, City twin and Response. |
+| City twin | `#/twin` | Free investigation in the same app: the full asset inventory, layers and alerts (collapsed until opened), the system cascade strip and the legend. The 3D operations room, with its own drawers for the learned dependency graph, the intervention planner and replay validation. With `c=<crisis id>` it draws every crisis footprint, frames the camera on that one and shows it in the breadcrumb. |
 | Response | `#/plan` | The action catalogue with what each action is worth alone, a crew budget, the planner's recommendation, a before/after ledger (critical facility-hours, hospital and EMS hours, P(a hospital goes critical), facilities reaching critical), what the plan costs elsewhere, and the **decision deadline**. |
 | Warnings | `#/warnings` | A plain-text situation report, an OASIS CAP 1.2 alert per crisis with one info block per city language, and the public cell-broadcast text as a handset receives it, with its GSM-7 / UCS-2 encoding and segment count. Everything is marked EXERCISE. |
-| My area | `#/area` | The same forecast for a resident: a plain-language verdict, the next 36 h per system serving the area, what to do in the city's languages, the nearest hospital now and at +6 and +12 h, and the roads forecast to close. |
+| My area | `#/area` | The forecast for one neighbourhood, phone-first. Search 120+ neighbourhood names or use the phone's location. You get a plain verdict with the rain now against the rain coming; how it reaches you (the hazard → drains → roads → power → phones → ambulance → hospital chain for the facilities that serve you, each with its time, likelihood and the learned link that carries it); nearby schools, colleges and pharmacies with whether their access is forecast to be cut; what to do and by when in the city's languages, with a message to share; today's real weather from Open-Meteo; the next 36 h per system; and roads to avoid. |
 
 **The decision deadline** is what a dashboard cannot show. `interventions.deadline(k, ids)`
 re-runs the plan with the crews starting 0, 2, 4 … 24 h later, still deciding at `k` on
@@ -93,7 +93,7 @@ The shared context travels in the query (`src/js/site/store.js`):
 | `m` | `replay` for replay mode; absent = now | `m=replay` |
 | `a` | selected facility id | `a=HSP-WMR` |
 | `c` | crisis shown on the twin | `c=CR-RAL-4573` |
-| `area` | district shown on My area | `area=Dhantoli` |
+| `area` | neighbourhood shown on My area | `area=Dharampeth` |
 
 For example `http://localhost:8000/#/twin?city=raleigh&s=flash&t=40&a=HSP-WMR` opens Raleigh's
 flash-flood scenario at T+40 with WakeMed selected, and
@@ -263,6 +263,60 @@ These numbers come from a synthetic ground truth generated by the same family of
 show that the pipeline works end to end and is honestly isolated from future data. They are not
 evidence of real-world skill.
 
+## Machine learning: pretrained models
+
+Two pretrained models sit beside the engine. Neither changes it: the engine's output is
+byte-identical with or without them.
+
+**A second opinion on every forecast: Chronos-Bolt** (`amazon/chronos-bolt-small`, Apache-2.0). A
+time-series foundation model pretrained on public data, used zero-shot: it has never been trained
+on these cities. Offline, `tools/ml/chronos_forecast.py` gives it each facility's sensor stream as
+observed up to every hourly issue time (with the planted noise, frozen gauges and dropouts, and
+nothing after the issue time). It forecasts the next 24 h as nine quantiles. P(CRITICAL within h)
+is the largest per-step probability of the stream reaching CRITICAL, read from those quantiles.
+The results ship as `src/js/data/chronos.js` (250 KB, every scenario of both cities).
+
+`src/js/engine/second.js` sets it beside the ensemble. It recomputes the ensemble's probability
+exactly as `engine.validation()` does (`second_probe.js` checks the two agree in every run) and
+scores both with the same code on the same cases. The Situation page shows where the two disagree
+now, with the replay scores. The crisis page lists both probabilities for every member.
+
+| Scenario | Brier, ensemble | Brier, Chronos | Warned in time (ens / Chronos) | False warnings (ens / Chronos) | Median lead (ens / Chronos) |
+| --- | --- | --- | --- | --- | --- |
+| Raleigh · tropical | 0.077 | 0.127 | 14 / 13 of 17 | 4 / 6 | 18.5 h / 1 h |
+| Raleigh · flash flood | 0.071 | 0.143 | 17 / 12 of 22 | 1 / 6 | 15.5 h / 0.5 h |
+| Raleigh · heat wave | 0.019 | 0.071 | 10 / 12 of 13 | 0 / 3 | 22.5 h / 1 h |
+| Raleigh · grid fault | 0.017 | 0.053 | 7 / 2 of 8 | 1 / 3 | 16.5 h / 0 h |
+| Nagpur · monsoon 2023 | 0.041 | 0.154 | 29 / 23 of 34 | 0 / 7 | 22 h / 0.5 h |
+| Nagpur · tropical | 0.060 | 0.146 | 25 / 22 of 27 | 4 / 8 | 20.5 h / 1 h |
+| Nagpur · flash flood | 0.079 | 0.161 | 24 / 14 of 32 | 0 / 2 | 15 h / 0 h |
+| Nagpur · heat wave | 0.023 | 0.088 | 17 / 15 of 18 | 0 / 5 | 18 h / 0 h |
+| Nagpur · grid fault | 0.017 | 0.039 | 4 / 6 of 8 | 0 / 5 | 21 h / 5 h |
+| Nagpur · festival crowds | 0.022 | 0.040 | 2 / 6 of 6 | 0 / 17 | 22 h / 0.5 h |
+
+Scored hourly from T+1 on every facility, for CRITICAL within 6, 12 and 24 h (8,700 cases on the
+Nagpur cloudburst). A warning is P(CRITICAL within 24 h) of 60% or more. In the chlorine release
+nothing reaches CRITICAL. The ensemble wins every run, and the lead times say why. Chronos sees
+only each facility's own stream, not the weather forecast or the dependency links, so it can follow
+a rise but not see one coming. Where it catches more events (heat, grid fault, crowds), it does so
+by warning often and late. Like the table above, these scores use simulated ground truth.
+
+**Search by meaning: all-MiniLM-L6-v2** (`Xenova/all-MiniLM-L6-v2` through Transformers.js 3.0.2,
+Apache-2.0, about 23 MB). The field at the top of the sidebar (`/` to focus) embeds the query and
+every page, facility, area, scenario and current crisis, then ranks them by cosine similarity. "Where
+will the power go out" finds the substations and the grid-fault scenario; "chemical leak" finds the
+chlorine release. The model downloads from Hugging Face on the first search and is cached by the
+browser. Until then, or where it cannot load (offline, or the single-page build, whose
+content-security policy only allows its own origin), results come from word overlap and say so
+(`src/js/site/search.js`).
+
+```bash
+pip install chronos-forecasting                     # CPU is enough: all 11 runs take a few minutes
+node tools/ml/export_streams.js                     # sensor streams → tools/ml/cache/ (git-ignored)
+python tools/ml/chronos_forecast.py                 # → src/js/data/chronos.js
+node tools/test/second_probe.js [--city nagpur]     # exactness check and the scores above
+```
+
 ## Layout
 
 ```
@@ -278,9 +332,10 @@ src/js/site/               engine access for every page (services.js), shared co
                            (store.js), the page router (router.js), the left sidebar and what
                            the site is (nav.js), page header, links and the SVG city map
                            (pages.js)
-src/js/views/              pages: overview.js (#/), crises.js (#/crises, #/crises/<id>),
-                           plan.js (#/plan), warnings.js (#/warnings), area.js (#/area),
-                           twin.js (the operations room at #/twin)
+src/js/views/              pages: twin.js (Situation at #/ and City twin at #/twin, one app),
+                           board.js (#/crises), crises.js (#/crises/<id>), plan.js (#/plan),
+                           warnings.js (#/warnings), area.js (#/area)
+src/js/ui/outlook.js       Situation's outlook panel and its analytical panels
 src/js/data/geodata*.js    generated per city: facilities, routes, networks, population (from OSM)
 data/tiles, data/fonts     baked OpenMapTiles vector tiles and label glyphs
 tools/                     data pipeline (MVT decoder, spec, builders) and tests
@@ -293,6 +348,7 @@ python3 tools/fetch_tiles.py data/tiles             # OpenFreeMap tiles for the 
 python3 tools/build_data.py                         # decode tiles → src/js/data/geodata.js
 python3 tools/build_data.py --city nagpur           # → src/js/data/geodata_nagpur.js
 python3 tools/enrich_buildings.py --city nagpur     # building classes, heights, hero-site lifting
+python3 tools/build_places.py                       # neighbourhoods, schools, colleges, pharmacies → src/js/data/places.js
 ```
 
 `tools/spec.py` (Raleigh) and `tools/spec_nagpur.py` are the authored knowledge bases: which
@@ -302,6 +358,26 @@ overview camera, and the sensor faults planted in its streams. `tools/mvt.py` is
 waterway graphs, chunks the corridor and drainage networks, and computes the substation service
 areas.
 
+`build_places.py` reads the `place` and `poi` layers of the same tiles for My area: Nagpur has 88
+named neighbourhoods and suburbs (plus the 30 monitored districts), 83 schools, 37 colleges and 45
+pharmacies; Raleigh 35, 120, 26 and 22. They live apart from the geodata, so the engine never sees
+them.
+
+### My area: what is computed and what is real
+
+- **Rain now** is the scenario's storm at that spot (what a radar would show). **Rain coming** is
+  each ensemble member's storm there over 24 h, weighted by how well the member matches the
+  evidence. The figures are the median of each member's own total and wettest hour, plus a
+  1-in-10 high case.
+- **How it reaches you** lists the first HIGH RISK crossing (observed, or forecast with its
+  probability) of every facility within 2.2 km, plus your nearest hospital and ambulance station.
+  "Because" names a learned dependency from an earlier step; otherwise the hazard that drives it.
+- **A school's access** is read from the nearest monitored road or river crossing within 1.2 km,
+  so it is modeled, and the page says so.
+- **Today's real weather** is a live call to Open-Meteo's GFS ensemble (31 runs) for that
+  spot. It is real and current, and it does not feed the simulation. The single-page build's
+  content-security policy blocks it, and the page says so.
+
 ### Tests
 
 ```bash
@@ -310,6 +386,7 @@ node tools/test/engine_probe.js tropical          # engine timeline, learning, v
 node tools/test/plan_probe.js --city nagpur       # decision deadlines and the ghost-city delta
 node tools/test/comms_probe.js --city nagpur      # CAP, SMS segments and the situation report
 node tools/test/interventions_probe.js            # counterfactual planner
+node tools/test/second_probe.js                   # Chronos-Bolt against the ensemble, same cases
 node tools/test/analytics_probe.js [--city nagpur] # Cascade-R and the crisis registry per scenario
 node tools/test/smoke.js http://localhost:8000/ out/   # headless browser run of the twin (Playwright)
 node tools/test/routes.js http://localhost:8000/       # pages, deep links, back/forward, cities, labels
@@ -332,4 +409,6 @@ passing a URL that contains `#/…`, or the shell rewrites it as a Windows path.
 ## Attribution
 
 Map data © OpenStreetMap contributors (ODbL) · tiles © OpenMapTiles, served by OpenFreeMap ·
-rendering by MapLibre GL JS (BSD-3) and three.js (MIT) · earcut (ISC) · textures by Poly Haven (CC0).
+rendering by MapLibre GL JS (BSD-3) and three.js (MIT) · earcut (ISC) · textures by Poly Haven (CC0) ·
+Chronos-Bolt by Amazon (Apache-2.0) · all-MiniLM-L6-v2 by sentence-transformers (Apache-2.0), run with
+Transformers.js by Hugging Face (Apache-2.0).

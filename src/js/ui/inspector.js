@@ -52,6 +52,7 @@
             <canvas class="chart" id="fcCanvas" style="height:132px"></canvas><div class="horizons" id="horizons"></div></div>
           <div class="sec"><div class="sec-head"><span class="sec-title">Hourly peak risk · last 12 h</span></div><canvas class="chart" id="barCanvas" style="height:92px"></canvas></div>
           <div class="sec"><div class="sec-head"><span class="sec-title">Why this risk · causal trace</span></div><div class="chain" id="chain"></div><div class="drivers" id="drivers"></div></div>
+          <div class="sec insp-links" id="inspLinks"></div>
         </div>`;
       el.querySelector('#inspClose').addEventListener('click', () => app.select(null));
       el.querySelector('#drivers').addEventListener('click', (e) => { const b = e.target.closest('[data-goto]'); if (b) app.select(+b.dataset.goto, { fly: true }); });
@@ -61,6 +62,18 @@
       feed.start();
       lastK = '';
       update(true);
+      links(i);
+    }
+    // Where to go next with this facility: its crisis, the other view of the twin, Response.
+    function links(i) {
+      const box = el.querySelector('#inspLinks');
+      if (!box) return;
+      const c = app.engine.analytics.crises(app.view.kInfo).list.find((x) => x.set.has(i));
+      const other = app.state.viewMode === 'situation' ? ['/twin', 'Explore in City twin'] : ['/', 'Back to Situation'];
+      box.innerHTML = `<div class="sec-head"><span class="sec-title">Go to</span></div><div class="insp-go">
+        ${c ? `<a data-nav="/crises/${esc(c.id)}" href="#/crises/${esc(c.id)}">Crisis ${esc(c.id)} · ${esc(c.type)}</a>` : '<a data-nav="/crises" href="#/crises">Crisis registry</a>'}
+        <a data-nav="${other[0]}" data-keep="1" href="#${other[0]}">${other[1]}</a>
+        <a data-nav="/plan" href="#/plan">Response plan</a></div>`;
     }
     function close() { cur = null; if (feed) { feed.stop(); feed = null; } }
 

@@ -109,57 +109,8 @@
     return `<svg class="gantt" viewBox="0 0 ${W} ${H}" role="img" aria-label="Crises over time">${ticks}${later}${cells}<line x1="${nowX}" x2="${nowX}" y1="${padT - 6}" y2="${H - 4}" class="g-now"/>${labels}</svg>`;
   }
 
-  // ── #/crises ───────────────────────────────────────────────────────────
+  // The registry at #/crises is the board in board.js; this file keeps one crisis.
   let token = 0;
-  async function renderRegistry(ctx) {
-    const my = ++token, alive = () => my === token;
-    S.header('/crises');
-    let L;
-    try { L = await S.load(ctx, S.busy); } catch (err) { S.fail(err); return; }
-    if (!alive()) return;
-    S.settle(L); S.header('/crises', L);
-    const { e, an, k } = L;
-    const reg = an.crises(k), cr = an.cascadeR(k), cx = an.crossing(k);
-    const R = e.stateAt(k).risk;
-    const lede = `Connected sets of stressed facilities in ${esc(L.geo.city)}, joined where stress flows along a learned dependency link or where the forecast carries it there. A facility counts once it has crossed HIGH RISK and is still stressed, or is forecast to cross it within 24 h with probability of at least 50%.`;
-    const sys = reg.systems.map((g) => {
-      const s = cr.bySys[g] || { net: 0, haz: 0 }, tot = Math.max(0.0001, s.net + s.haz);
-      return `<div class="rbar"><span class="rbar-k">${A.SYS_LABEL[g]}</span><span class="rbar-track"><i class="net" style="width:${(100 * s.net / Math.max(1, maxTot(cr))).toFixed(1)}%"></i><i class="haz" style="width:${(100 * s.haz / Math.max(1, maxTot(cr))).toFixed(1)}%"></i></span><span class="rbar-v num">${tot < 0.01 ? '—' : pct(s.net / tot) + ' via links'}</span></div>`;
-    }).join('');
-    $('page').innerHTML = `
-      <div class="pg-wrap">
-        <header class="pg-head">
-          <h1>Crises <span class="pg-count num">${reg.list.length}</span></h1>
-          <p class="pg-lede">${lede}</p>
-          <p class="pg-asof">As issued at ${at(L, L.t)}${L.mode === 'historical' ? ' · replay' : ''}. ${esc(L.scen.label)} · <span class="faint">${esc(L.scen.provenance ? L.scen.provenance.label : 'Simulation')}</span></p>
-        </header>
-        <div class="pg-grid two">
-          <section class="pg-card" aria-labelledby="crH">
-            <h2 id="crH">Cascade-R <span class="num cr-big r-${cr.r >= 1 ? 'critical' : cr.r >= 0.6 ? 'high' : 'normal'}">${cr.r.toFixed(2)}</span></h2>
-            <p>${crText(L, cr, cx)}</p>
-            <div class="rbars" aria-label="Stress by system: through links and from the hazard">${sys}</div>
-            <p class="legend-line"><i class="sw net"></i>through dependency links <i class="sw haz"></i>from the hazard directly</p>
-          </section>
-          <section class="pg-card map-card" aria-label="Crisis footprints">
-            ${S.cityMap({ L, R, crises: reg.list, link: crisisHref })}
-            <p class="map-note">Footprint: 650 m around each member facility. Dots are monitored facilities in their current state. <a href="${esc(twinHref(L, { c: reg.list[0] ? reg.list[0].id : null, a: null }))}">Open the footprints on the 3D twin →</a></p>
-          </section>
-        </div>
-        <section class="pg-sec" aria-labelledby="regH">
-          <h2 id="regH">Registry</h2>
-          ${reg.list.length ? reg.list.map((c) => row(L, c)).join('') : `<p class="empty">No crisis at ${fmtT(L.t)}. Facilities are within their normal bands or stressed only briefly.</p>`}
-        </section>
-        ${reg.links.length ? `<section class="pg-sec"><h2>Interactions</h2>${interactions(L, reg)}</section>` : ''}
-        <section class="pg-sec" aria-labelledby="hisH">
-          <h2 id="hisH">Over time</h2>
-          <p class="pg-note">The registry as it was issued each hour up to ${fmtT(L.t)}. Faded: forecast-only (precursor) at that hour.</p>
-          <div id="crHist" class="hist"><div class="loading-bar"><i></i></div></div>
-        </section>
-      </div>`;
-    const hist = await history(L, alive);
-    if (!hist || !alive()) return;
-    $('crHist').innerHTML = gantt(L, hist) || '<p class="empty">No crisis before this time.</p>';
-  }
   const maxTot = (cr) => Math.max(...Object.values(cr.bySys).map((s) => s.net + s.haz), 0.0001);
   function crText(L, cr, cx) {
     const now = cr.r >= 1
@@ -170,12 +121,6 @@
     return `${now}${when}`;
   }
 
-  T.router.register('/crises', {
-    title: 'Crises',
-    mount(ctx) { S.show(); renderRegistry(ctx); },
-    unmount() { token++; },
-    update(ctx) { renderRegistry(ctx); },
-  });
 
   // ── #/crises/<id> ──────────────────────────────────────────────────────
   let detailId = null;
@@ -209,18 +154,20 @@
     for (const s of seq) { if (s.level === 'HIGH RISK' && !firstOf.has(s.i)) firstOf.set(s.i, s); if (s.level === 'CRITICAL' && !critOf.has(s.i)) critOf.set(s.i, s); }
     // Where the members' stress comes from now: hazard directly or through links.
     let viaLinks = 0, fromHaz = 0;
+    const sec = T.services.second(e);
     const rows = c.members.map((i) => {
       const ex = e.explain(k, i);
       const top = ex.drivers.filter((d) => d.kind !== 'base' && d.value > 0.005)[0];
       for (const d of ex.drivers) { if (d.kind === 'edge') viaLinks += Math.max(0, d.value); else if (d.kind === 'hazard') fromHaz += Math.max(0, d.value); }
       const driver = !top ? '<span class="faint">baseline</span>' : top.kind === 'hazard' ? esc(top.label) : `via ${esc(F[top.from].name)}`;
       const hi = firstOf.get(i), cr = critOf.get(i);
+      const pE = sec ? sec.ens(k, i) : null, pM = sec ? sec.ml(k, i) : null;
       const ev = (s) => (!s ? '<span class="faint">—</span>' : s.observed ? `${fmtT(s.t)}` : `<span class="fc">~${fmtT(s.t)} · p ${pct(s.prob)}</span>`);
       return `<tr>
         <td><a href="${esc(twinHref(L, { a: F[i].id, c: c.id }))}">${esc(F[i].name)}</a><div class="faint num">${esc(F[i].id)}</div></td>
         <td>${A.SYS_LABEL[A.group(e.kinds[i])]}</td><td>${esc(F[i].district)}</td>
         <td>${riskPill(e.now[k * N + i])}</td><td>${driver}${top ? ` <span class="faint">${pct(top.share)}</span>` : ''}</td>
-        <td>${ev(hi)}</td><td>${ev(cr)}</td></tr>`;
+        <td>${ev(hi)}</td><td>${ev(cr)}</td>${sec ? `<td class="num">${pct(pE)}<span class="faint"> · ${pM == null ? '—' : pct(pM)}</span></td>` : ''}</tr>`;
     }).join('');
     const tot = viaLinks + fromHaz;
     const root0 = F[c.root];
@@ -245,21 +192,15 @@
           <p class="pg-lede">${story} ${span} ${crit}${share}</p>
           <p class="pg-asof">As issued at ${at(L, L.t)}${L.mode === 'historical' ? ' · replay' : ''}. ${esc(L.scen.label)} · <span class="faint">${esc(L.scen.provenance ? L.scen.provenance.label : 'Simulation')}</span></p>
         </header>
-        <div class="pg-grid two">
-          <section class="pg-card">
-            <dl class="cr-facts big">
-              <div><dt>Began</dt><dd>${since(L, c)}</dd></div>
-              <div><dt>Systems</dt><dd>${sysChips(c)}</dd></div>
-              <div><dt>Residents in footprint <span class="faint">(modeled)</span></dt><dd class="num">${people(c.people)}</dd></div>
-              <div><dt>Next to go critical</dt><dd>${next(L, c)}</dd></div>
-            </dl>
-            <div class="pg-actions"><a class="btn" href="${esc(twinHref(L, { c: c.id, a: null }))}">${T.icons.UI.home} Open on the 3D twin</a></div>
-          </section>
-          <section class="pg-card map-card" aria-label="Footprint">
-            ${S.cityMap({ L, R: e.stateAt(k).risk, crises: reg.list, focus: c.id, fit: c.id, link: crisisHref, label: `Footprint of ${c.id}` })}
-            <p class="map-note">Footprint: 650 m around each member. Residents are the modeled population whose nearest monitored facility is a member.</p>
-          </section>
-        </div>
+        <section class="pg-card bd-facts">
+          <dl class="cr-facts">
+            <div><dt>Began</dt><dd>${since(L, c)}</dd></div>
+            <div><dt>Systems</dt><dd>${sysChips(c)}</dd></div>
+            <div><dt>Residents near members <span class="faint">(modeled)</span></dt><dd class="num">${people(c.people)}</dd></div>
+            <div><dt>Next to go critical</dt><dd>${next(L, c)}</dd></div>
+          </dl>
+          <div class="pg-actions"><a class="btn" href="${esc(S.href('/crises', { c: c.id }))}">Back to the board</a> <a class="btn" href="${esc(twinHref(L, { c: c.id, a: null }))}">${T.icons.UI.home} City twin</a> <a class="btn" href="${esc(S.href('/plan', { c: c.id }))}">Response</a></div>
+        </section>
         <section class="pg-sec" aria-labelledby="seqH">
           <h2 id="seqH">How it propagates</h2>
           <p class="pg-note">Each member's first crossing of HIGH RISK and CRITICAL, in order. Observed up to ${fmtT(L.t)}; after that, the ensemble's median time and the probability that it happens at all.</p>
@@ -268,7 +209,7 @@
         <section class="pg-sec" aria-labelledby="memH">
           <h2 id="memH">Members</h2>
           <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th>Facility</th><th>System</th><th>District</th><th>Now</th><th>Main driver now <span class="faint">(share of risk)</span></th><th>High risk</th><th>Critical</th></tr></thead>
+            <thead><tr><th>Facility</th><th>System</th><th>District</th><th>Now</th><th>Main driver now <span class="faint">(share of risk)</span></th><th>High risk</th><th>Critical</th>${sec ? `<th title="P(CRITICAL within 24 h): the ensemble, then ${esc(sec.model)} (pretrained, zero-shot) from the same sensor streams">P(critical 24 h) <span class="faint">ensemble · ML</span></th>` : ''}</tr></thead>
             <tbody>${rows}</tbody></table></div>
         </section>
         ${ix ? `<section class="pg-sec"><h2>Interactions with other crises</h2>${ix}</section>` : ''}

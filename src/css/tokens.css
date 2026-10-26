@@ -4,6 +4,7 @@
    Deliberately a single dark look (control-room software); color is reserved for risk. */
 :root {
   color-scheme: dark;
+  --outlook-w: 340px; /* Situation's outlook panel */
 
   /* Surfaces: charcoal with a faint cool bias */
   --bg: #090b0e;

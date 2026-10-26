@@ -20,8 +20,17 @@ const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
   await p.screenshot({ path: `${out}/11-phone-drawer.png` });
   await p.tap('.row >> nth=0'); await p.waitForTimeout(2500);
   await p.screenshot({ path: `${out}/12-phone-inspector.png` });
-  // Overview and crisis registry
-  for (const [name, path] of [['13-phone-overview', '/'], ['14-phone-crises', '/crises']]) {
+  // Situation is the twin's other view: its outlook is the drawer.
+  await p.evaluate(() => { location.hash = '#/'; });
+  await p.waitForTimeout(2500);
+  await p.screenshot({ path: `${out}/13-phone-situation.png` });
+  console.log('13-phone-situation horizontal overflow:', await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1));
+  await p.tap('#drawerBtn'); await p.waitForTimeout(700);
+  await p.screenshot({ path: `${out}/13-phone-situation-outlook.png` });
+  console.log('13-phone-situation outlook opens:', await p.evaluate(() => document.getElementById('outlook').getBoundingClientRect().left >= -1));
+  await p.tap('#drawerBtn'); await p.waitForTimeout(500);
+  // Site pages
+  for (const [name, path] of [['14-phone-crises', '/crises'], ['15-phone-area', '/area']]) {
     await p.evaluate((h) => { location.hash = '#' + h; }, path);
     const t = Date.now();
     while (Date.now() - t < 60000 && !(await p.evaluate(() => { const g = document.getElementById('page'); return !document.getElementById('site').hidden && g.querySelector('.pg-wrap') && !g.querySelector('.loading-bar'); }))) await p.waitForTimeout(250);

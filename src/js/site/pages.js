@@ -8,7 +8,9 @@
   const { stateOf, RISK_HEX, fmtT } = C;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  // Let the browser paint (a status line) before heavy work. Hidden tabs and embedded
+  // panes get no animation frames, so a timer stands in after 60 ms.
+  const nextFrame = () => new Promise((r) => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 60); });
   const DEFAULT_CITY = 'nagpur'; // what a link without a city opens on a fresh load
   const LIVE_NOW = 34.5;
 

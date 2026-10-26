@@ -45,6 +45,7 @@
     if (c.m) q.set('m', c.m);
     if (c.a) q.set('a', c.a);
     if (c.c) q.set('c', c.c);
+    if (c.area) q.set('area', c.area);
     const qs = q.toString();
     return '#' + p + (qs ? '?' + qs : '');
   }

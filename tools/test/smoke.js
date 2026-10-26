@@ -34,6 +34,9 @@ const twinUrl = (u) => (u.includes('#') ? u : u + '#/twin?city=raleigh');
   }));
   console.log(JSON.stringify(info));
   // Select WakeMed via the list
+  // The asset panel starts closed; open it to use the list.
+  await page.evaluate(() => TWIN.app.setLeft(true));
+  await page.waitForTimeout(600);
   await page.click('.row:has-text("WakeMed Raleigh Campus")');
   await page.waitForTimeout(2600);
   await page.screenshot({ path: `${out}/02-wakemed.png` });

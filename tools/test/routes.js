@@ -26,12 +26,25 @@ const { chromium } = require('playwright');
   let fails = 0;
   const check = (label, ok, info) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${ok ? '' : '  ' + JSON.stringify(info)}`); if (!ok) fails++; };
 
-  // 1. The bare page opens the overview of the default city and writes the context.
+  // 1. The bare page opens Situation (the twin's briefing view) of the default city.
   await page.goto(base, { waitUntil: 'domcontentloaded' });
-  await pageReady(); await settle();
-  let pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, tab: ((document.querySelector('#nav .nav-item[aria-current]') || {}).querySelector ? document.querySelector('#nav .nav-item[aria-current] .nav-label').textContent : null), plan: !!document.querySelector('#ovPlanBody .plan-list'), chart: !!document.querySelector('#ovChart svg'), title: document.title }));
-  check('bare URL → overview of the default city, Nagpur', pg.hash === '#/?city=nagpur&s=monsoon2023' && /Nagpur/.test(pg.h1) && pg.tab === 'Situation' && /^Overview/.test(pg.title), pg);
-  check('overview has the predicted course and a recommended plan', pg.chart && pg.plan, pg);
+  await ready(); await until(() => !!document.querySelector('#outlook .ol-ev')); await settle();
+  const sit = () => page.evaluate(() => ({
+    hash: location.hash, title: document.title, mode: TWIN.app.state.viewMode,
+    tab: (document.querySelector('#nav .nav-item[aria-current] .nav-label') || {}).textContent,
+    outlook: getComputedStyle(document.getElementById('outlook')).display !== 'none', inventory: getComputedStyle(document.getElementById('leftPanel')).display !== 'none',
+    city: (document.querySelector('.ol-head') || {}).textContent, events: document.querySelectorAll('.ol-ev').length,
+    strip: document.getElementById('strip').innerText, crossings: document.querySelectorAll('#strip .fs-item').length,
+  }));
+  let pg = await sit();
+  check('bare URL → Situation of the default city, Nagpur', pg.hash === '#/?city=nagpur&s=monsoon2023' && pg.mode === 'situation' && pg.tab === 'Situation' && /^Situation/.test(pg.title) && pg.outlook && !pg.inventory && /Monsoon/.test(pg.city), pg);
+  check('Situation lists upcoming events and the next forecast crossings', pg.events > 0 && pg.crossings > 0 && /next crossings/i.test(pg.strip), pg);
+  // Selecting an event selects its facility, moves the clock there and opens the inspector.
+  await page.evaluate(() => { const b = [...document.querySelectorAll('.ol-ev')].find((x) => !x.classList.contains('crisis')); b.click(); });
+  await page.waitForTimeout(1500);
+  let ev = await page.evaluate(() => ({ sel: TWIN.app.state.selected, t: TWIN.app.state.t, inspecting: document.getElementById('app').classList.contains('inspecting'), links: [...document.querySelectorAll('#inspLinks a')].map((a) => a.textContent.trim()) }));
+  check('event → facility selected, clock moved, inspector with route links', ev.sel != null && ev.t > 37 && ev.inspecting && ev.links.length === 3 && ev.links.some((l) => /City twin/.test(l)), ev);
+  await page.evaluate(() => TWIN.app.select(null));
   // The sidebar lists every built feature, marks the current one, and advertises none
   // that cannot be opened.
   const nav = await page.evaluate(() => ({
@@ -57,12 +70,17 @@ const { chromium } = require('playwright');
   await click('#navCollapse');
   check('sidebar collapses to an icon rail', tight.on && tight.w < 70 && tight.label === 'none', tight);
 
-  // The header's city selector switches the page in place (the rest runs on Raleigh).
-  await page.evaluate(() => { const s = document.getElementById('pgCity'); s.value = 'raleigh'; s.dispatchEvent(new Event('change')); });
-  await until(() => /city=raleigh/.test(location.hash) && /Raleigh/.test((document.querySelector('#page h1') || {}).textContent || ''));
-  await pageReady();
-  pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, plan: !!document.querySelector('#ovPlanBody .plan-list') }));
-  check('city selector → Raleigh overview, no reload', pg.hash === '#/?city=raleigh&s=tropical' && /Raleigh/.test(pg.h1) && pg.plan, pg);
+  // City twin is the same app in its other view: inventory back, outlook gone, no reload.
+  await click('#nav a[data-nav="/twin"]');
+  await until(() => TWIN.app.state.viewMode === 'twin'); await settle();
+  pg = await sit();
+  check('Situation → City twin switches view in place', /^#\/twin/.test(pg.hash) && !pg.outlook && pg.inventory && pg.tab === 'City twin' && !/next crossings/i.test(pg.strip), pg);
+  // The rest runs on Raleigh: a city change on the twin reloads into it.
+  await page.goto('about:blank');
+  await page.goto(base + '#/?city=raleigh', { waitUntil: 'domcontentloaded' });
+  await ready(); await until(() => !!document.querySelector('#outlook .ol-body')); await settle();
+  pg = await sit();
+  check('Raleigh link → Raleigh Situation', pg.hash === '#/?city=raleigh&s=tropical' && pg.mode === 'situation' && /Tropical/.test(pg.city), pg);
 
   // The three operations pages added in the 6-feature build.
   await click('#nav a[data-nav="/plan"]');
@@ -115,20 +133,27 @@ const { chromium } = require('playwright');
     check('My area switches language in place', after !== before && after.length > 10, { before: before.slice(0, 30), after: after.slice(0, 30) });
   }
   await page.evaluate(() => TWIN.store.go('/', { replace: true }));
-  await pageReady();
+  await ready();
 
   // 2. Tabs and links: crisis registry, a crisis, then the twin framed on it.
   await click('#nav a[data-nav="/crises"]');
   await pageReady();
-  pg = await page.evaluate(() => ({ hash: location.hash, rows: document.querySelectorAll('.crisis-row').length, first: (document.querySelector('.crisis-row .cr-id a') || {}).textContent, gantt: !!document.querySelector('#crHist svg') }));
-  check('Crises tab → registry with rows and history', /^#\/crises\?city=raleigh&s=tropical$/.test(pg.hash) && pg.rows > 0 && pg.gantt, pg);
+  await until(() => !!document.querySelector('#bdTL svg .tl-obs'), null, 60000);
+  pg = await page.evaluate(() => ({ hash: location.hash, rows: document.querySelectorAll('.bd-tbl.reg tr[data-crisis]').length, first: (document.querySelector('.bd-tbl.reg tr[data-crisis]') || { dataset: {} }).dataset.crisis,
+    nodes: document.querySelectorAll('.net .nd').length, matrix: document.querySelectorAll('.mx td').length, twin: !!(TWIN.app && TWIN.app.map), maps: document.querySelectorAll('#page .citymap, #page canvas').length }));
+  check('Crises board: registry, network, matrix and timeline, with no map', /^#\/crises\?city=raleigh&s=tropical$/.test(pg.hash) && pg.rows > 0 && pg.nodes > 3 && pg.matrix > 9 && pg.maps === 0, pg);
   const cid = pg.first;
-  await click('.crisis-row .cr-id a');
+  // Selecting a crisis keeps it in the link and focuses the panels; a system shows in the inspector.
+  await click(`.bd-tbl.reg tr[data-crisis="${cid}"] td:nth-child(2)`);
+  await page.evaluate(() => document.querySelector('.net .nd[data-sys="drainage"]').dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  pg = await page.evaluate(() => ({ hash: location.hash, insp: document.querySelector('.net-insp h3').textContent, tl: document.querySelector('#bdTL .bd-sub-r').textContent }));
+  check('crisis and system selection drive the inspector, timeline and link', new RegExp(`c=${cid}`).test(pg.hash) && /Drainage/.test(pg.insp) && /Risk/.test(pg.tl), pg);
+  await click(`.bd-tbl.reg a[href*="${cid}"]`);
   await pageReady();
-  pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, members: document.querySelectorAll('.tbl tbody tr').length, events: document.querySelectorAll('.events li').length, map: !!document.querySelector('.citymap polygon') }));
-  check('crisis link → its detail page', pg.hash.startsWith(`#/crises/${cid}?`) && pg.h1.includes(cid) && pg.members > 0 && pg.events > 0 && pg.map, pg);
+  pg = await page.evaluate(() => ({ hash: location.hash, h1: document.querySelector('#page h1').textContent, members: document.querySelectorAll('.tbl tbody tr').length, events: document.querySelectorAll('.events li').length, map: !!document.querySelector('#page .citymap') }));
+  check('crisis link → its detail page, without a map', pg.hash.startsWith(`#/crises/${cid}?`) && pg.h1.includes(cid) && pg.members > 0 && pg.events > 0 && !pg.map, pg);
   if (out) await page.screenshot({ path: `${out}/routes-crisis.png` });
-  await click('.pg-actions a.btn');
+  await click('.pg-actions a.btn[href*="#/twin"]');
   await ready(); await settle();
   let st = await state();
   const chip = await page.evaluate(() => (document.querySelector('.crumb-crisis a') || {}).textContent);
@@ -195,15 +220,15 @@ const { chromium } = require('playwright');
   st = await state();
   check('hash edit applies selection and mode', st.sel === 'EMS-02' && st.mode === 'live', st);
 
-  // 8. Unknown facility and scenario are dropped; unknown paths go to the overview.
+  // 8. Unknown facility and scenario are dropped; unknown paths go to Situation.
   await page.evaluate(() => { location.hash = '#/twin?s=nope&a=NOPE'; });
   await settle(); await page.waitForTimeout(600);
   st = await state();
   check('unknown values dropped from URL', !/nope|NOPE/.test(st.hash), st);
   await page.evaluate(() => { location.hash = '#/nowhere?s=tropical'; });
-  await pageReady();
+  await until(() => TWIN.app.state.viewMode === 'situation' && /^#\/\?/.test(location.hash), null, 20000).catch(() => {});
   const nf = await page.evaluate(() => ({ hash: location.hash, toast: document.getElementById('siteToast').innerText }));
-  check('unknown path → overview with a note', /^#\/\?/.test(nf.hash) && /no page/i.test(nf.toast), nf);
+  check('unknown path → Situation with a note', /^#\/\?/.test(nf.hash) && /no page/i.test(nf.toast), nf);
 
   // 9. The twin without a city opens the default city: its data, clock, scenarios and systems.
   await page.goto('about:blank');

@@ -41,6 +41,8 @@
     return e;
   }
   const planner = (e) => e.planner || (e.planner = T.interventions.create(e));
+  // The pretrained forecaster's second opinion (second.js); null where it has no run.
+  const second = (e) => (e.second !== undefined ? e.second : (e.second = T.second.create(e)));
 
   // The planner's recommendation within a crew budget at decision step k, with its
   // expected outcome. The search takes seconds, so it runs spread over frames and is
@@ -63,7 +65,7 @@
   const recommendedNow = (e, k, budget = 5) => (e.recDone && e.recDone.get(k + '|' + budget)) || null;
 
   T.services = {
-    engine, planner, recommended, recommendedNow, population, scenariosFor, runs,
+    engine, planner, second, recommended, recommendedNow, population, scenariosFor, runs,
     cities: () => Object.values(root.TWIN_GEOS || {}),
     geo: geoOf,
     cached: (city, scenario) => engines.has(city + '|' + scenario),

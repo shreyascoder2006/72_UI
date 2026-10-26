@@ -10,14 +10,17 @@
   const DEFAULT_CITY = T.site.DEFAULT_CITY;
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  // Let the browser paint (a status line) before heavy work. Hidden tabs and embedded
+  // panes get no animation frames, so a timer stands in after 60 ms.
+  const nextFrame = () => new Promise((r) => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 60); });
 
   const app = {
     geo: null, // the city's data (TWIN_GEOS[city]), chosen at boot
     engine: null,
     state: {
       scenario: null, mode: 'live', nowT: LIVE_NOW, t: LIVE_NOW, playing: false, speed: 2, streaming: false,
-      selected: null, drawer: null, orbit: false, crisis: null,
+      selected: null, drawer: null, orbit: false, crisis: null, leftOpen: false, legendOpen: false,
+      viewMode: 'twin', // 'situation' (#/, the briefing) or 'twin' (#/twin, free investigation)
       layers: { drainage: true, traffic: true, power: true, telecom: true, hospital: true, weather: true, flows: true, arcs: false, buildings: true, labels: true, population: false, crises: false },
     },
     view: null,
@@ -50,7 +53,7 @@
     $('brandTitle').textContent = g.city;
     $('brandSub').textContent = g.region;
     $('map').setAttribute('aria-label', `3D map of ${g.city}`);
-    T.nav.render('/twin', null);
+    T.nav.render(app.state.viewMode === 'situation' ? '/' : '/twin', null);
     $('navBtn').innerHTML = I.menu;
     $('navBtn').addEventListener('click', () => T.nav.toggle());
     const s0 = app.state;
@@ -81,6 +84,7 @@
     await step('Starting command center…');
     app.sidebar = T.sidebar.create(app);
     app.inspector = T.inspector.create(app);
+    app.outlook = T.outlook.create(app);
     app.timeline = T.timeline.create(app);
     app.graph = T.drawers.createGraph(app);
     app.plan = T.drawers.createPlan(app);
@@ -95,6 +99,7 @@
     tm.overview({ duration: 2600 });
     requestAnimationFrame(loop);
     await app.applyContext(ctx, ['m', 't', 'a', 'c']); // the scenario was applied before the engine was built
+    app.setView(app.state.viewMode, { first: true });
     urlReady = true;
     writeUrl(false);
   }
@@ -181,12 +186,13 @@
     app.layers.update(v.R, { diurnal: e.diurnal(v.t), flows: flows(v), arcs: app.state.layers.arcs ? arcs(v) : null });
     if (app.state.layers.weather) drawRadar(v);
     // Panels
-    T.nav.render('/twin', { e, an: e.analytics, k: v.kInfo, scen: e.scen });
+    T.nav.render(app.state.viewMode === 'situation' ? '/' : '/twin', { e, an: e.analytics, k: v.kInfo, scen: e.scen });
     app.sidebar.updateList(v.R, v.trust, app.state.selected);
     const kAlert = v.forecastView ? v.kNow : v.k;
     app.sidebar.updateAlerts(e.alerts.filter((a) => a.k <= kAlert), Math.min(v.t, v.tNow));
     app.inspector.update(true);
     renderTop(v);
+    app.outlook.render(v, force);
     renderStrip(v);
     renderLegend();
     drawCrises(v);
@@ -269,6 +275,8 @@
   const STAGES = [['weather', 'Hazard'], ['drainage', 'Drainage'], ['traffic', 'Traffic'], ['power', 'Power'], ['telecom', 'Telecom'], ['ems', 'EMS'], ['hospital', 'Hospital']];
   let seqCache = { k: -1, s: '', seq: [] };
   function renderStrip(v) {
+    if (app.state.viewMode === 'situation') { forecastStrip(v); return; }
+    fsKey = '';
     const e = app.engine;
     if (seqCache.k !== v.kInfo || seqCache.s !== app.state.scenario) seqCache = { k: v.kInfo, s: app.state.scenario, seq: e.cascade(v.kInfo) };
     const first = {};
@@ -299,7 +307,11 @@
     if (L.power) items.push('<span><i style="height:8px;background:repeating-linear-gradient(135deg,rgba(229,72,77,.6) 0 2px,transparent 2px 5px)"></i>Outage risk area</span>');
     if (L.crises || app.state.crisis) items.push('<span><i class="ln" style="border-top-style:dashed;border-color:#ee8a2a"></i>Crisis footprint</span>');
     if (L.flows) items.push('<span><i class="ar water"></i>Water flow</span><span><i class="ar trf"></i>Traffic diversion</span><span><i class="ar cas"></i>Cascade spread</span>');
-    $('legend').innerHTML = `<div class="legend-scale"><i style="background:${RISK_HEX.normal}"></i><i style="background:${RISK_HEX.watch}"></i><i style="background:${RISK_HEX.high}"></i><i style="background:${RISK_HEX.critical}"></i></div>
+    const open = app.state.legendOpen;
+    $('legend').classList.toggle('open', open);
+    const toggle = `<button class="legend-toggle" id="legendToggle" type="button" aria-expanded="${open}">${open ? 'Hide legend' : 'Legend'} ${I.chevron}</button>`;
+    if (!open) { $('legend').innerHTML = toggle; return; }
+    $('legend').innerHTML = `${toggle}<div class="legend-scale"><i style="background:${RISK_HEX.normal}"></i><i style="background:${RISK_HEX.watch}"></i><i style="background:${RISK_HEX.high}"></i><i style="background:${RISK_HEX.critical}"></i></div>
       <div class="legend-labels"><span>NORMAL</span><span>WATCH</span><span>HIGH</span><span>CRITICAL</span></div>
       <div class="legend-items">${items.join('')}</div>`;
   }
@@ -307,13 +319,15 @@
   function renderCrumbs() {
     const i = app.state.selected, F = app.geo.facilities, c = app.state.crisis;
     const home = `<button class="home" id="homeBtn">${I.home} City overview</button>`;
+    const panel = `<button class="panel-toggle" id="leftToggle" type="button" aria-expanded="${app.state.leftOpen}" aria-controls="leftPanel">${I.menu} ${app.state.leftOpen ? 'Hide assets' : 'Assets & layers'}</button><span class="sep-bar" aria-hidden="true"></span>`;
     const crisis = c ? `<span class="crumb-crisis"><a class="num" data-nav="/crises/${esc(c)}" data-keep="1" href="${esc(T.site.href('/crises/' + c, { c: null }))}" title="Crisis details">${esc(c)}</a><button id="crisisOff" aria-label="Hide crisis ${esc(c)}">${I.close}</button></span>` : '';
-    $('crumbs').innerHTML = (i == null
+    $('crumbs').innerHTML = panel + (i == null
       ? `<span>${esc(app.geo.city)}</span><span class="sep">›</span><span class="cur">All districts</span>`
       : `<button class="crumb" id="crumbCity">${esc(app.geo.city)}</button><span class="sep">›</span><span>${esc(F[i].district)}</span><span class="sep">›</span><span class="cur">${esc(F[i].name)}</span>${home}`) + crisis;
     const hb = $('homeBtn'); if (hb) hb.addEventListener('click', () => { app.select(null); app.tm.overview(); });
     const cc = $('crumbCity'); if (cc) cc.addEventListener('click', () => { app.select(null); app.tm.overview(); });
     const co = $('crisisOff'); if (co) co.addEventListener('click', () => app.focusCrisis(null));
+    $('leftToggle').addEventListener('click', () => app.setLeft(!app.state.leftOpen));
   }
 
   // Crisis footprints (the analytics registry at the issue time) while a crisis is in
@@ -408,6 +422,8 @@
   // ── Actions ────────────────────────────────────────────────────────────
   app.select = function (i, opts = {}) {
     const s = app.state;
+    // Situation: reading a forecast trajectory should not be reading a moving target.
+    if (i != null && s.viewMode === 'situation' && s.playing) { s.playing = false; s.streaming = false; }
     s.selected = i;
     app.markers.select(i);
     app.layers.select(i);
@@ -514,9 +530,83 @@
     writeUrl(true);
   }
 
+  // ── Situation: the briefing view of the same twin ──────────────────────
+  // The next threshold crossings, in predicted order: recent observed ones (solid) and
+  // forecast ones with their probability (dashed). Each facility appears once, at its
+  // most severe crossing. Nothing forecast: a muted strip that says so.
+  let fsKey = '';
+  function forecastStrip(v) {
+    const e = app.engine, F = app.geo.facilities, tI = v.tInfo;
+    const key = `${v.kInfo}|${app.state.scenario}|${app.state.selected}`;
+    if (key === fsKey) return;
+    fsKey = key;
+    const seq = e.cascade(v.kInfo), keep = (s) => (s.observed ? s.t >= tI - 6 : s.prob >= 0.5 && s.t - tI <= 48);
+    const items = [], seen = new Set();
+    for (const s of seq) {
+      if (seen.has(s.i) || !keep(s)) continue;
+      seen.add(s.i);
+      items.push(seq.find((q) => q.i === s.i && q.level === 'CRITICAL' && keep(q)) || s);
+      if (items.length >= 7) break;
+    }
+    items.sort((a, b) => a.t - b.t);
+    const strip = $('strip');
+    strip.classList.toggle('fs-muted', !items.length);
+    if (!items.length) { strip.innerHTML = '<span class="fs-empty">No cascade currently forecast</span>'; return; }
+    const SYS = { drainage: 'Drainage', pump: 'Drainage', traffic: 'Roads', power: 'Power', telecom: 'Telecom', ems: 'EMS', hospital: 'Hospital' };
+    strip.innerHTML = '<span class="fs-lead">Next crossings</span>' + items.map((s, n) => {
+      const crit = s.level === 'CRITICAL', ck = C.clockAt(e.t0, s.t);
+      return `${n ? '<span class="stage-arrow">→</span>' : ''}<button type="button" class="fs-item ${s.observed ? 'obs' : 'fc'} r-${crit ? 'critical' : 'high'}${app.state.selected === s.i ? ' on' : ''}" data-ev="${s.i}" data-t="${s.t}" title="${esc(F[s.i].name)} · ${crit ? 'CRITICAL' : 'HIGH RISK'} · ${s.observed ? 'observed' : 'forecast, p ' + Math.round(s.prob * 100) + '%'} · ${fmtT(s.t)}">
+        <span class="fs-sys">${SYS[e.kinds[s.i]] || ''}</span><span class="fs-name">${esc(F[s.i].name)}</span><span class="fs-t">${s.observed ? 'obs ' : '~'}${ck.time}${s.observed ? '' : ' · ' + Math.round(s.prob * 100) + '%'}</span></button>`;
+    }).join('');
+  }
+  // Frame the leading hazard: the top crisis and the next forecast crossings.
+  function focusHazard() {
+    const e = app.engine, v = app.view, F = app.geo.facilities;
+    const top = e.analytics.crises(v.kInfo).list[0];
+    let pts = top ? top.members.map((i) => F[i].lngLat) : [];
+    pts = pts.concat(e.cascade(v.kInfo).filter((s) => !s.observed && s.prob >= 0.5).slice(0, 5).map((s) => F[s.i].lngLat));
+    if (pts.length < 2) pts = F.map((f, i) => i).filter((i) => e.kinds[i] !== 'weather').sort((a, b) => v.R[b] - v.R[a]).slice(0, 4).map((i) => F[i].lngLat);
+    const lng = pts.map((p) => p[0]), lat = pts.map((p) => p[1]), pad = 0.01;
+    app.tm.orbit(false); app.state.orbit = false; $('orbit').setAttribute('aria-pressed', 'false');
+    app.map.fitBounds([[Math.min(...lng) - pad, Math.min(...lat) - pad], [Math.max(...lng) + pad, Math.max(...lat) + pad]], { padding: app.tm.padding, pitch: 52, bearing: app.tm.OVERVIEW.bearing, duration: 1400, maxZoom: 14.2 });
+  }
+  let autoCrises = false;
+  // Switch between the briefing (Situation) and free investigation (City twin): same map,
+  // timeline and inspector; the left panel, strip, overlays and camera change.
+  app.setView = function (view, opts = {}) {
+    const s = app.state, was = s.viewMode;
+    s.viewMode = view;
+    $('app').classList.toggle('situation', view === 'situation');
+    if (view === 'situation' && !s.layers.crises) { s.layers.crises = true; autoCrises = true; const b = $('ly-crises'); if (b) b.checked = true; }
+    if (view !== 'situation' && autoCrises && s.crisis == null) { s.layers.crises = false; autoCrises = false; const b = $('ly-crises'); if (b) b.checked = false; }
+    $('strip').classList.remove('fs-muted');
+    fsKey = '';
+    app.outlook.invalidate();
+    renderCrumbs();
+    applyPadding();
+    renderAll(true);
+    if (view === 'situation' && (was !== 'situation' || opts.first) && s.selected == null && s.crisis == null) focusHazard();
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+  };
+  // Select a forecast event: its facility, the clock at the event, the inspector.
+  app.focusEvent = function (i, t) {
+    if (t != null) { app.scrub(t); app.scrubEnd(); }
+    app.select(i, { fly: true });
+  };
+
+  // Open or close the asset, layer and alert panel (wide screens; phones use the drawer).
+  app.setLeft = function (on) {
+    app.state.leftOpen = !!on;
+    $('app').classList.toggle('left-closed', !on);
+    renderCrumbs();
+    // The timeline and the camera framing follow the panel once it has moved.
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 380);
+  };
+
   function applyPadding() {
     const narrow = window.innerWidth <= 960;
-    const left = narrow ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--left-w')) + 10;
+    const css = (n) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n));
+    const left = narrow ? 0 : app.state.viewMode === 'situation' ? css('--outlook-w') + 10 : !app.state.leftOpen ? 10 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--left-w')) + 10;
     const right = app.state.selected != null && !narrow ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--right-w')) + 10 : 10;
     const bottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bottom-h')) + 10;
     app.tm.setPadding({ left, right, bottom, top: 56 });
@@ -566,6 +656,8 @@
     const needle = $('north').querySelector('.compass-needle');
     app.map.on('rotate', () => { needle.style.transform = `rotate(${-app.map.getBearing()}deg)`; });
     // Narrow-screen drawer
+    $('strip').addEventListener('click', (ev) => { const b = ev.target.closest('[data-ev]'); if (b) app.focusEvent(+b.dataset.ev, +b.dataset.t); });
+    $('legend').addEventListener('click', (ev) => { if (ev.target.closest('#legendToggle')) { app.state.legendOpen = !app.state.legendOpen; renderLegend(); } });
     $('drawerBtn').innerHTML = I.menu;
     $('drawerBtn').addEventListener('click', () => $('app').classList.toggle('drawer-open'));
     document.querySelector('.left').addEventListener('click', (e) => { if (e.target.closest('.row')) $('app').classList.remove('drawer-open'); });
@@ -586,7 +678,9 @@
     else if (app.state.orbit) app.tm.orbit(true);
   };
   // Started by the #/twin page (views/twin.js) with the shared context from the URL.
-  app.boot = function (ctx) {
+  app.boot = function (ctx, view = 'twin') {
+    app.state.viewMode = view;
+    $('app').classList.toggle('situation', view === 'situation');
     init(ctx).catch((err) => {
       console.error(err);
       $('loadingStep').textContent = 'Could not start the twin: ' + (err && err.message ? err.message : err);

@@ -1,0 +1,106 @@
+/* Situation (#/): the outlook panel, the next-crossings strip and the inspector's links.
+   Same tokens and chrome as the twin; only the content differs. */
+
+.outlook { display: none; }
+.app.situation .left { display: none; }
+.app.situation .outlook {
+  position: absolute; top: var(--top-h); left: 0; bottom: 0; width: var(--outlook-w); z-index: 20;
+  display: flex; flex-direction: column; border-right: 1px solid var(--line);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.app.situation .crumbs .panel-toggle, .app.situation .crumbs .sep-bar { display: none; }
+
+.ol-head { flex: none; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.ol-kicker { margin: 0; font: 600 var(--fs-xs) / 1.35 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+.ol-kicker span { color: var(--accent); }
+.ol-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.ol-title h2 { margin: 0; font: 600 21px / 1.1 var(--font-cond); }
+.ol-asof { margin: 6px 0 0; font: 400 var(--fs-xs) / 1.3 var(--font-mono); color: var(--text-3); }
+.ol-body { flex: 1; min-height: 0; padding: 12px 16px 16px; }
+.ol-brief { margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.55; color: var(--text-2); }
+
+.ol-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+.ol-kpi { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: var(--radius); background: var(--well); border: 1px solid var(--line); min-width: 0; }
+.ol-kpi span { font: 600 var(--fs-xs) / 1.25 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.ol-kpi b { font: 600 19px / 1.1 var(--font-mono); color: var(--text); }
+.ol-kpi b.r-critical { color: var(--crit); }
+.ol-kpi b.r-high { color: var(--high); }
+.ol-kpi small { font: 400 var(--fs-xs) / 1 var(--font-ui); color: var(--text-3); }
+
+.ol-sec { margin-bottom: 14px; }
+.ol-sec h3 { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font: 600 var(--fs-xs) / 1.2 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2); }
+.ol-sec h3 span { font-weight: 500; letter-spacing: 0.04em; text-transform: none; color: var(--text-4); }
+.ol-sys { display: grid; grid-template-columns: 66px minmax(0, 1fr) 70px; column-gap: 8px; align-items: center; padding: 4px 0; }
+.ol-sys-k { font-size: var(--fs-sm); color: var(--text-2); }
+.ol-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.ol-bar i { display: block; height: 100%; background: var(--rc); }
+.ol-sys-v { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.06em; color: var(--rc); text-align: right; white-space: nowrap; }
+.ol-sys-n { grid-column: 2 / -1; font: 400 var(--fs-xs) / 1.4 var(--font-mono); color: var(--text-3); }
+
+.ol-evs { display: grid; gap: 4px; }
+.ol-ev { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; width: 100%; padding: 7px 8px; border-radius: var(--radius); border-left: 3px solid var(--rc); background: var(--well); text-align: left; }
+.ol-ev:hover, .ol-ev.on { background: rgba(255, 255, 255, 0.07); }
+.ol-ev-t { font: 600 var(--fs-sm) / 1.35 var(--font-mono); color: var(--rc); }
+.ol-ev-b { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ol-ev-b b { font-weight: 600; font-size: var(--fs-md); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-ev-b > span { font-size: var(--fs-xs); line-height: 1.4; color: var(--text-3); }
+.ol-ev.crisis b .num { font-size: var(--fs-xs); font-weight: 500; }
+.ol-empty { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
+
+.ol-panel { border-bottom: 1px solid var(--line); }
+.ol-panel summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.ol-panel summary::-webkit-details-marker { display: none; }
+.ol-panel summary::after { content: "+"; font: 400 15px / 1 var(--font-mono); color: var(--text-3); }
+.ol-panel[open] summary::after { content: "−"; }
+.ol-panel summary span { margin-left: 6px; margin-right: auto; font-weight: 500; font-size: var(--fs-xs); color: var(--accent); }
+.ol-panel-b { padding: 0 0 10px; font-size: var(--fs-sm); line-height: 1.5; color: var(--text-2); }
+.ol-panel-b p { margin: 0 0 6px; }
+.ol-panel-b ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.ol-panel-b li { display: flex; justify-content: space-between; gap: 8px; }
+.ol-panel-b li button { text-align: left; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-panel-b li button:hover { color: var(--accent); }
+.ol-panel-b li > span { flex: none; font-family: var(--font-mono); color: var(--rc, var(--text-3)); }
+.ol-spark { display: block; width: 100%; height: auto; }
+.ol-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); margin: 4px 0; }
+.ol-tbl th, .ol-tbl td { padding: 4px 4px 4px 0; text-align: left; border-bottom: 1px solid var(--line); }
+.ol-tbl thead th { color: var(--text-3); font-weight: 600; }
+.ol-tbl td { font-family: var(--font-mono); color: var(--text); }
+.ol-note { font-size: var(--fs-xs); color: var(--text-3); }
+
+.ol-foot { display: grid; gap: 6px; padding-top: 4px; }
+.ol-foot a { color: var(--accent); text-decoration: none; font-size: var(--fs-sm); font-weight: 600; }
+.ol-foot a:hover { text-decoration: underline; }
+.ol-foot p { margin: 4px 0 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-4); }
+
+/* Next-crossings strip (replaces the system strip in Situation) */
+.cascade-strip .fs-lead { padding: 0 8px 0 6px; font: 600 9.5px / 1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.cascade-strip .fs-item { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 12px; white-space: nowrap; color: var(--rc); font: 600 10px / 1 var(--font-ui); letter-spacing: 0.06em; }
+.cascade-strip .fs-item.obs { background: var(--rd); }
+.cascade-strip .fs-item.fc { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rc) 60%, transparent); border: 1px dashed transparent; }
+.cascade-strip .fs-item.on { outline: 1px solid var(--text); }
+.cascade-strip .fs-sys { text-transform: uppercase; letter-spacing: 0.12em; }
+.cascade-strip .fs-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11px; }
+.cascade-strip .fs-t { font: 500 10px / 1 var(--font-mono); letter-spacing: 0; opacity: 0.85; }
+.app.situation .cascade-strip { overflow-x: auto; scrollbar-width: none; }
+.cascade-strip.fs-muted { opacity: 0.75; }
+.cascade-strip .fs-empty { padding: 0 12px; font: 600 10px / 1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+
+/* Inspector: where to go next */
+.insp-go { display: flex; flex-wrap: wrap; gap: 6px; }
+.insp-go a { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid var(--line-strong); color: var(--text); text-decoration: none; font-size: var(--fs-sm); font-weight: 500; }
+.insp-go a:hover { background: rgba(255, 255, 255, 0.07); }
+
+/* Phones: the outlook is the drawer, as the inventory is in City twin. */
+@media (max-width: 960px) {
+  .app.situation .outlook { width: min(88vw, 360px); transform: translateX(-102%); transition: transform 0.35s var(--ease); box-shadow: var(--shadow); z-index: 30; }
+  .app.situation.drawer-open .outlook { transform: none; }
+  .app.situation .cascade-strip { display: flex; top: 96px; left: 12px; right: 12px; transform: none; max-width: none; }
+}
+
+/* Situation: the inspector is a drawer over the map that stops at the timeline, so the
+   timeline and its controls keep their full width; the breadcrumb gives way to it. */
+@media (min-width: 961px) {
+  .app.situation .right { bottom: var(--bottom-h); border-bottom: 1px solid var(--line); }
+  .app.situation.inspecting .bottom { right: 0; }
+  .app.situation.inspecting .crumbs { display: none; }
+}

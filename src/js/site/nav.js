@@ -92,10 +92,12 @@
         <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><path d="M13 1.5 23 7.25v11.5L13 24.5 3 18.75V7.25z" fill="none" stroke="#79a7e3" stroke-width="1.4"/><path d="M8 17V11.5l3-1.7V17M12.6 17V8.6l3-1.7V17M17.2 17v-5.2l2.2-1.2" fill="none" stroke="#e4e8ee" stroke-width="1.4" stroke-linejoin="round"/></svg>
         <span class="nav-brand-text"><b>Cascade</b><span>Intelligence</span></span>
       </a>
+      <div class="nav-search" id="navSearch" role="search"></div>
       <nav class="nav-items" id="navItems" aria-label="Features">${groups}</nav>
       <div class="nav-foot">
         <button class="nav-collapse" id="navCollapse" aria-pressed="false" aria-label="Collapse the sidebar">${T.icons.UI.chevron}</button>
       </div>`;
+    if (T.search) T.search.mount($('navSearch'));
     $('navCollapse').addEventListener('click', () => setCollapsed(!document.body.classList.contains('nav-tight')));
     // On a phone the sidebar is an overlay; any navigation, the scrim or Escape close it.
     el.addEventListener('click', (ev) => { if (ev.target.closest('a')) close(); });

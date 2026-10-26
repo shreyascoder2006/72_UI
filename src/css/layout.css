@@ -83,12 +83,23 @@
 .app.inspecting .map-ui { right: var(--right-w); }
 .map-ui > * { pointer-events: auto; }
 
+/* The asset, layer and alert panel starts closed; "Assets & layers" in the breadcrumb
+   bar opens it, and the map, timeline and camera framing take the space back. Phones
+   keep their drawer (below). */
+@media (min-width: 961px) {
+  .left { transition: transform 0.35s var(--ease); }
+  .app.left-closed .left { transform: translateX(-102%); pointer-events: none; }
+  .app.left-closed .map-ui, .app.left-closed .bottom { left: 0; }
+  /* Situation: the outlook takes the inventory's place and the map keeps the rest. */
+  .app.situation .map-ui, .app.situation .bottom { left: var(--outlook-w); }
+}
+
 /* ── Narrow screens: sidebars become drawers ───────────────────────────── */
 .topbar .drawer-btn { display: none; }
 /* Collapsed sidebar: icons only, so the views either side get the width back. */
 body.nav-tight { --nav-w: 58px; }
 @media (max-width: 1180px) {
-  :root { --left-w: 290px; --right-w: 320px; }
+  :root { --left-w: 290px; --right-w: 320px; --outlook-w: 300px; }
   .sys-text, .clock-scn { display: none; }
   .sim-long { display: none; }
   .sim-short { display: inline; }

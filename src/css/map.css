@@ -46,6 +46,11 @@
 .crumbs button.crumb:hover { color: var(--text); }
 .crumbs .home { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); color: var(--text); font-weight: 500; white-space: nowrap; }
 .crumbs .home:hover { background: rgba(255, 255, 255, 0.11); }
+.crumbs .panel-toggle { display: inline-flex; align-items: center; gap: 7px; height: 24px; margin-left: -6px; padding: 0 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); color: var(--text); font-weight: 600; white-space: nowrap; }
+.crumbs .panel-toggle:hover { background: rgba(255, 255, 255, 0.11); }
+.crumbs .panel-toggle[aria-expanded="true"] { background: var(--accent-dim); color: var(--accent); }
+.crumbs .panel-toggle + .sep-bar { width: 1px; height: 16px; background: var(--line-strong); }
+@media (max-width: 960px) { .crumbs .panel-toggle, .crumbs .panel-toggle + .sep-bar { display: none; } }
 
 .tools { position: absolute; right: 12px; top: 12px; display: flex; align-items: center; gap: 6px; }
 .tools .btn { height: 32px; border-radius: 16px; }
@@ -65,6 +70,13 @@
   position: absolute; left: 12px; bottom: 12px; padding: 9px 11px; border-radius: var(--radius); border: 1px solid var(--line-strong);
   font-size: var(--fs-xs); color: var(--text-2); display: grid; gap: 6px; min-width: 190px;
 }
+/* Collapsed by default: a small button until opened. */
+.legend:not(.open) { min-width: 0; padding: 0; gap: 0; }
+.legend-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; height: 30px; padding: 0 11px; border-radius: var(--radius); font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); }
+.legend.open .legend-toggle { height: auto; padding: 0 0 2px; color: var(--text-3); }
+.legend-toggle:hover { color: var(--text); }
+.legend-toggle svg { transition: transform 0.2s var(--ease); }
+.legend.open .legend-toggle svg { transform: rotate(180deg); }
 .legend-scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
 .legend-scale i { height: 4px; border-radius: 2px; }
 .legend-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; font: 600 8.5px / 1 var(--font-ui); letter-spacing: 0.08em; color: var(--text-3); }
