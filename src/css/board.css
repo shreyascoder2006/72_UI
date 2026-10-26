@@ -7,7 +7,10 @@
 
 .bd-row { display: grid; gap: 12px; margin-top: 14px; }
 .bd-top { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
-.bd-four { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; }
+/* Two columns of stacked cards: a short registry is followed by the facilities table
+   rather than leaving a hole beside the taller matrix. */
+.bd-four { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.bd-col { display: grid; gap: 12px; align-content: start; min-width: 0; }
 .bd-card { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.018); }
 .bd-tl { margin-top: 12px; }
 .bd-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-bottom: 8px; }
@@ -29,19 +32,36 @@
 .bd-delta.up { color: var(--high); border-color: color-mix(in srgb, var(--high) 45%, transparent); }
 .bd-delta.down { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 .bd-delta small { font-weight: 400; color: var(--text-3); }
-.cr-rows { display: grid; gap: 4px; }
-.cr-row { display: grid; grid-template-columns: 74px minmax(0, 1fr) 88px; align-items: center; gap: 10px; width: 100%; padding: 4px 6px; border-radius: 3px; text-align: left; }
+/* The state line carries the meaning the bare figure cannot: below 1 now is not safe if
+   the forecast crosses later, so it is coloured by imminence, not by the current value. */
+.cr-state {
+  margin: 0 0 10px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--rc, var(--line)); background: var(--rd, rgba(255, 255, 255, 0.03));
+}
+.cr-state b { display: block; margin-bottom: 3px; font-size: var(--fs-md); color: var(--rc, var(--text)); }
+.cr-state span { display: block; font-size: var(--fs-sm); line-height: 1.5; color: var(--text-2); }
+.cr-rows { display: grid; gap: 3px; }
+.cr-row {
+  display: grid; grid-template-columns: 66px minmax(0, 1fr) 46px; grid-template-areas: "k t v" ". s s";
+  align-items: center; gap: 2px 10px; width: 100%; padding: 5px 6px; border-radius: 3px; text-align: left;
+}
 .cr-row:hover, .cr-row.on { background: rgba(255, 255, 255, 0.05); }
+/* A system inside the selected crisis is context; only a clicked system is selected. */
+.cr-row.inc .cr-k { color: var(--text); }
+.cr-row.inc { box-shadow: inset 2px 0 0 var(--line-strong); }
 .cr-row.on { box-shadow: inset 2px 0 0 var(--accent); }
-.cr-k { font-size: var(--fs-sm); color: var(--text-2); }
-.cr-bar { display: flex; height: 10px; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, 0.05); }
-.cr-bar i { display: block; height: 100%; }
+.cr-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cr-k { grid-area: k; font-size: var(--fs-sm); color: var(--text-2); }
+/* Bar length is magnitude against the worst system; the split inside it is the source. */
+.cr-track { grid-area: t; height: 10px; border-radius: 2px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.cr-bar { display: flex; height: 100%; border-radius: 2px; overflow: hidden; }
+.cr-bar i { display: block; height: 100%; min-width: 0; }
 .cr-bar i.haz, .sw.haz { background: #3f7fd6; }
 .cr-bar i.net, .sw.net { background: var(--watch); }
-.cr-row.quiet .cr-bar { opacity: 0.4; }
-.cr-v { font-size: var(--fs-xs); color: #6f9fe6; text-align: right; white-space: nowrap; }
-.cr-v b { margin-left: 6px; color: var(--watch); font-weight: 600; }
-.cr-row.quiet .cr-v { color: var(--text-4); }
+.cr-row.quiet .cr-track { opacity: 0.45; }
+.cr-v { grid-area: v; font-size: var(--fs-xs); color: var(--text-2); text-align: right; white-space: nowrap; }
+.cr-s { grid-area: s; font-size: var(--fs-xs); color: var(--text-4); }
+.cr-row.on .cr-s, .cr-row:hover .cr-s { color: var(--text-3); }
 
 /* Dependency network */
 .net-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 10px; align-items: stretch; }
@@ -77,7 +97,6 @@
 .ln-k.haz { border-color: #3f7fd6; border-top-style: dashed; }
 .ln-k.obs { border-color: var(--accent); }
 .ln-k.fc { border-color: var(--accent); border-top-style: dashed; }
-.dotk { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); margin-left: 6px; }
 
 .net-insp { padding: 10px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--well); font-size: var(--fs-sm); height: 100%; max-height: 250px; overflow-y: auto; scrollbar-width: thin; }
 .net-insp h3 { margin: 0 0 6px; font-size: var(--fs-md); font-weight: 600; color: var(--text); }
@@ -165,3 +184,52 @@
   .bd-tl { overflow-x: auto; }
   .cr-row { grid-template-columns: 64px minmax(0, 1fr) 80px; }
 }
+
+/* ── Improvement pass: timeline labels, matrix semantics, evidence ──────── */
+/* Labels are laid out in lanes above the plot with a leader back to the marker, so a
+   crowded group stays readable and no event is moved to tidy the chart. */
+.tl-lead { stroke: currentColor; stroke-width: 1; opacity: 0.3; }
+.tl-lead.r-critical { color: var(--crit); }
+.tl-lead.r-high { color: var(--high); }
+.tl-evl { font: 500 10px / 1 var(--font-mono); fill: currentColor; cursor: pointer; }
+.tl-evl.on { font-weight: 700; text-decoration: underline; }
+.tl-evl:hover { text-decoration: underline; }
+
+/* A confirmed link carrying nothing, a candidate link and no link at all are different
+   claims; the matrix must not collapse them into one colour ramp. */
+.mx td.mx-idle { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
+.mx td.mx-cand { background: transparent; box-shadow: inset 0 0 0 1px rgba(226, 185, 59, 0.3); color: var(--text-4); }
+.mx td[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mx-key i.mx-idle { box-shadow: inset 0 0 0 1px var(--line-strong); background: transparent; }
+.mx-key i.mx-cand { box-shadow: inset 0 0 0 1px rgba(226, 185, 59, 0.35); background: transparent; }
+.mx-state {
+  margin: 0 0 9px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.025);
+  font-size: var(--fs-sm); line-height: 1.5; color: var(--text-2);
+}
+.mx-state b { color: var(--text); font-weight: 600; }
+
+/* Feed, analysis and trust are three different quantities and are columned separately. */
+.ev-tbl td.ev-off { color: var(--watch); }
+.ev-tbl td.ev-bad { color: var(--crit); }
+.ni-tag.ok { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.ni-tag.watch { border-color: color-mix(in srgb, var(--watch) 45%, transparent); color: var(--watch); }
+
+.bd-tbl tr[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* A window the chart cannot label separately is listed in full below it, so clustering
+   never costs access to an individual crossing. */
+.tl-groups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tl-grp { border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.02); }
+.tl-grp summary { padding: 4px 9px; cursor: pointer; font-size: var(--fs-xs); color: var(--text-2); }
+.tl-grp summary b { font-family: var(--font-mono); color: var(--rc, var(--text)); }
+.tl-grp[open] { background: rgba(255, 255, 255, 0.04); }
+.tl-grp ul { margin: 0; padding: 2px 9px 7px; list-style: none; display: grid; gap: 3px; }
+.tl-grp li { display: flex; gap: 8px; align-items: baseline; font-size: var(--fs-xs); }
+.tl-grp li button { color: var(--text); text-align: left; }
+.tl-grp li button:hover, .tl-grp li button.on { color: var(--accent); text-decoration: underline; }
+.tl-grp li span { color: var(--text-4); font-family: var(--font-mono); white-space: nowrap; }
+
+/* The inspector scrolls rather than clipping its last line. */
+.net-insp { overflow-y: auto; }
+.net-insp .ni-note { margin-bottom: 0; }

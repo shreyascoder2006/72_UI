@@ -23,7 +23,7 @@
   const SYS_SHORT = { hazard: 'Hazard', drainage: 'Drainage', traffic: 'Roads', power: 'Power', telecom: 'Telecom', ems: 'EMS', hospital: 'Hospitals' };
 
   let token = 0, L = null, M = null;
-  let sel = { crisis: null, sys: null, fac: null, edge: null }, view = 'systems', query = '';
+  let sel = { crisis: null, sys: null, fac: null, edge: null }, view = 'systems', query = '', facsAll = false;
   const series = new Map(); // Cascade-R series per city|scenario|k|mode
 
   // ── Model: everything the views read, computed once per issue time ─────
@@ -57,6 +57,9 @@
     M = model(L);
     if (sel.crisis && !M.reg.list.some((c) => c.id === sel.crisis)) sel = { crisis: null, sys: null, fac: null, edge: null };
     if (!sel.crisis && ctx.c && M.reg.list.some((c) => c.id === ctx.c)) sel.crisis = ctx.c;
+    // With exactly one crisis there is nothing to choose, so it is the context by default
+    // rather than leaving the most important panels asking for a click.
+    if (!sel.crisis && M.reg.list.length === 1) sel.crisis = M.reg.list[0].id;
     $('page').innerHTML = `
       <div class="pg-wrap bd-wrap">
         <header class="pg-head bd-head">
@@ -70,10 +73,14 @@
         </div>
         <section class="bd-card bd-tl" id="bdTL" aria-labelledby="bdTLh"></section>
         <div class="bd-row bd-four">
-          <section class="bd-card" id="bdReg" aria-labelledby="bdRegh"></section>
-          <section class="bd-card" id="bdMx" aria-labelledby="bdMxh"></section>
-          <section class="bd-card" id="bdFac" aria-labelledby="bdFach"></section>
-          <section class="bd-card" id="bdEv" aria-labelledby="bdEvh"></section>
+          <div class="bd-col">
+            <section class="bd-card" id="bdReg" aria-labelledby="bdRegh"></section>
+            <section class="bd-card" id="bdFac" aria-labelledby="bdFach"></section>
+          </div>
+          <div class="bd-col">
+            <section class="bd-card" id="bdMx" aria-labelledby="bdMxh"></section>
+            <section class="bd-card" id="bdEv" aria-labelledby="bdEvh"></section>
+          </div>
         </div>
       </div>`;
     wire();
@@ -102,7 +109,10 @@
     if ('crisis' in patch) T.store.set({ c: sel.crisis }); // kept in the link, no redraw from the store
     draw();
   }
+  let wired = false;
   function wire() {
+    if (wired) return;
+    wired = true;
     const page = $('page');
     page.addEventListener('click', (ev) => {
       const t = ev.target;
@@ -123,28 +133,64 @@
       }
     });
     page.addEventListener('input', (ev) => { if (ev.target.id === 'bdSearch') { query = ev.target.value; drawReg(true); } });
+    // Rows, matrix cells and the show-all toggle are reachable without a mouse.
+    page.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      const t = ev.target;
+      if (t.id === 'bdFacMore') { ev.preventDefault(); facsAll = !facsAll; drawFacilities(); $('bdFacMore') && $('bdFacMore').focus(); return; }
+      if (t.matches('[data-fac],[data-edge],[data-sys],[data-crisis]')) { ev.preventDefault(); t.click(); }
+    });
+    page.addEventListener('click', (ev) => {
+      if (ev.target.id === 'bdFacMore') { facsAll = !facsAll; drawFacilities(); const b = $('bdFacMore'); if (b) b.focus(); }
+    });
   }
 
   // ── Cascade-R ──────────────────────────────────────────────────────────
+  // Two things the operator needs and a single number cannot carry: how much stress each
+  // system is under (bar length, against the worst system) and where it comes from (the
+  // split inside the bar). A low figure now is not safety if the forecast crosses later,
+  // so the state line says which of those two situations this is.
+  function crState(cr, cross) {
+    if (cr.r >= 1) return { key: 'critical', head: 'Self-sustaining now', body: 'More stress is moving through learned dependency links than the hazard is applying directly. Stopping the hazard no longer stops the cascade: the links have to be cut.' };
+    if (cross && !cross.now) {
+      const inH = cross.t - L.t;
+      return {
+        key: inH <= 12 ? 'high' : 'watch',
+        head: `Below the threshold now · forecast to cross at ${fmtT(cross.t)}`,
+        body: `The cascade is not feeding itself yet, but on the evidence available at ${fmtT(L.t)} it is forecast to reach 1 in ${C.fmtDur(inH)}, at ${esc(S.clockShort(M.e, cross.t))}. Acting before then is acting on the hazard; after it, on the links.`,
+      };
+    }
+    return { key: 'normal', head: 'Below the threshold', body: `Stress is arriving from the hazard rather than circulating through the network, and is not forecast to cross 1 within the window. This is a hazard problem, not yet a cascade.` };
+  }
   function drawCR() {
     const { cr, crPrev, kPrev, systems, e } = M, sc = scope();
     const d = cr.r - crPrev.r;
+    const cross = L.an.crossing(M.k);
+    const st = crState(cr, cross);
+    // Bar length is magnitude against the worst system; the split inside it is the source.
+    const tot = (g) => { const x = cr.bySys[g] || { net: 0, haz: 0 }; return x.net + x.haz; };
+    const peak = Math.max(0.02, ...systems.map(tot));
     const rows = systems.map((g) => {
-      const s = cr.bySys[g] || { net: 0, haz: 0 }, tot = s.net + s.haz;
-      const quiet = tot < 0.02;
-      const h = quiet ? 0 : s.haz / tot, n = quiet ? 0 : s.net / tot;
-      const on = sel.sys === g || (sc.c && g in sc.c.sys);
-      return `<button type="button" class="cr-row${on ? ' on' : ''}${quiet ? ' quiet' : ''}" data-sys="${g}" title="${A.SYS_LABEL[g]}: hazard ${s.haz.toFixed(2)}, links ${s.net.toFixed(2)}">
+      const x = cr.bySys[g] || { net: 0, haz: 0 }, t = x.net + x.haz;
+      const quiet = t < 0.02;
+      const w = (t / peak) * 100;
+      const on = sel.sys === g, inC = !!(sc.c && g in sc.c.sys);
+      const share = quiet ? '' : `${pct(x.haz / t)} hazard · ${pct(x.net / t)} links`;
+      return `<button type="button" class="cr-row${on ? ' on' : ''}${inC ? ' inc' : ''}${quiet ? ' quiet' : ''}" data-sys="${g}" aria-pressed="${on}"
+        title="${A.SYS_LABEL[g]} — total stress ${t.toFixed(2)}: ${x.haz.toFixed(2)} direct from the hazard, ${x.net.toFixed(2)} through learned links">
         <span class="cr-k">${SYS_SHORT[g]}</span>
-        <span class="cr-bar"><i class="haz" style="width:${(h * 100).toFixed(1)}%"></i><i class="net" style="width:${(n * 100).toFixed(1)}%"></i></span>
-        <span class="cr-v num">${quiet ? 'quiet' : `${pct(h)} <b>${pct(n)}</b>`}</span></button>`;
+        <span class="cr-track"><span class="cr-bar" style="width:${Math.max(quiet ? 0 : 1.5, w).toFixed(1)}%">
+          <i class="haz" style="flex:${quiet ? 1 : x.haz || 0.0001}"></i><i class="net" style="flex:${quiet ? 0 : x.net || 0.0001}"></i></span></span>
+        <span class="cr-v num">${quiet ? '<span class="faint">no stress</span>' : t.toFixed(2)}</span>
+        <span class="cr-s">${quiet ? '' : share}</span></button>`;
     }).join('');
     $('bdCR').innerHTML = `
       <div class="bd-h"><h2 id="bdCRh">Cascade-R <span class="num cr-num r-${cr.r >= 1 ? 'critical' : cr.r >= 0.6 ? 'high' : 'normal'}">${cr.r.toFixed(2)}</span></h2>
         <span class="bd-delta ${d > 0.005 ? 'up' : d < -0.005 ? 'down' : ''}">${d > 0.005 ? '▲' : d < -0.005 ? '▼' : '='} ${Math.abs(d).toFixed(2)} <small>vs ${fmtT(kPrev * e.DT)}</small></span></div>
-      <p class="bd-sub">Stress reaching facilities through learned dependency links, divided by stress the hazard applies directly. Above 1 the cascade feeds itself. ${V.crText(L, cr, L.an.crossing(M.k))}</p>
-      <div class="cr-rows">${rows}</div>
-      <p class="bd-legend"><i class="sw haz"></i>Direct hazard <i class="sw net"></i>Through dependency links <span>share of each system's stress now</span></p>`;
+      <div class="cr-state r-${st.key}"><b>${esc(st.head)}</b><span>${st.body}</span></div>
+      <div class="cr-rows" role="group" aria-label="Stress by system">${rows}</div>
+      <p class="bd-legend"><i class="sw haz"></i>Direct from the hazard <i class="sw net"></i>Through learned links
+        <span>Bar length is total stress against ${esc(SYS_SHORT[systems.reduce((a, g) => (tot(g) > tot(a) ? g : a), systems[0])] || '—')}, the worst system now.</span></p>`;
   }
 
   // ── Dependency network ─────────────────────────────────────────────────
@@ -272,11 +318,30 @@
         <div><dt>Avg lag downstream</dt><dd>${lag == null ? '—' : lag.toFixed(1) + ' h'}</dd></div>
         <div><dt>First CRITICAL</dt><dd>${first ? `${esc(F[first.i].name)} · ${first.observed ? 'observed' : '~'}${fmtT(first.t)}${first.observed ? '' : ' · ' + pct(first.prob)}` : 'none forecast'}</dd></div></dl>`;
     }
-    return '<p class="ni-empty">Select a system, a link, a crisis or a facility.</p>';
+    // Nothing picked: the selected crisis is the context, and failing that the city.
+    const c = scope().c;
+    if (c) {
+      const sys = Object.entries(c.sys).sort((a, b) => b[1] - a[1]);
+      const st = stateOf(c.maxR);
+      return `<h3>${esc(c.id)}</h3><span class="pill r-${st.key}"><span class="dot"></span>${esc(c.type)} · ${esc(c.stage)}</span>
+        <dl><div><dt>Facilities</dt><dd>${c.members.length} across ${sys.length} system${sys.length > 1 ? 's' : ''}</dd></div>
+        <div><dt>Began at</dt><dd>${esc(F[c.root].name)} · ${fmtT(c.since)}</dd></div>
+        <div><dt>Next CRITICAL</dt><dd>${c.nextCrit ? `${esc(F[c.nextCrit.i].name)} ~${fmtT(c.nextCrit.t)} · ${pct(c.nextCrit.prob)}` : 'none forecast'}</dd></div>
+        <div><dt>Worst system</dt><dd>${A.SYS_LABEL[sys[0][0]]} · ${pct(sys[0][1])}</dd></div></dl>
+        <p class="ni-note">Pick a system box, a link or a facility to look inside this crisis.</p>`;
+    }
+    const worst = facs.slice().sort((a, b) => R[b] - R[a])[0];
+    const wst = worst == null ? null : stateOf(R[worst]);
+    const n = M.reg.list.length;
+    return `<h3>${esc(L.geo.city)}</h3><span class="pill r-${wst ? wst.key : 'normal'}"><span class="dot"></span>${n ? `${n} crises · none selected` : `No crisis at ${fmtT(L.t)}`}</span>
+      <dl><div><dt>Facilities watched</dt><dd>${facs.length}</dd></div>
+      <div><dt>Most stressed</dt><dd>${worst == null ? '—' : `${esc(F[worst].name)} · ${pct(R[worst])}`}</dd></div>
+      <div><dt>Links confirmed</dt><dd>${links.filter((l) => l.status === 'confirmed').length} of ${links.length}</dd></div></dl>
+      <p class="ni-note">${n ? 'Pick a crisis in the registry to focus every panel on it, or a system box to look across all of them.' : 'Pick a system box or a link to see what the learner has established so far.'}</p>`;
   }
 
   // ── Timeline ───────────────────────────────────────────────────────────
-  const TL = { W: 1000, H: 180, padL: 44, padR: 14, top: 48, bot: 26 };
+  const TL = { W: 1000, H: 196, padL: 44, padR: 14, top: 62, bot: 26 };
   function drawTimeline() {
     const { e, seq, F, sysOf } = M, sc = scope(), tI = L.t;
     const x = (t) => TL.padL + (t / e.HOURS) * (TL.W - TL.padL - TL.padR);
@@ -321,20 +386,53 @@
       if (!key || seen.has(key)) continue;
       seen.add(key); evs.push(s);
     }
-    let lastLabel = [-1e9, -1e9];
-    evs.slice(0, 14).forEach((s, n) => {
-      const crit = s.level === 'CRITICAL', ex = x(s.t), lane = n % 2, ly = 24 + lane * 10;
-      // Label a crossing when it does not collide with the previous label in its lane.
-      if (ex - lastLabel[lane] > 120) {
-        lastLabel[lane] = ex;
-        g += `<text x="${ex + 6}" y="${ly + 3}" class="tl-evl ${crit ? 'r-critical' : 'r-high'}">${focusI != null ? (crit ? 'CRITICAL' : 'HIGH RISK') : `${SYS_SHORT[sysOf(s.i)]} ${crit ? 'critical' : 'high'}`} ${s.observed ? '' : '~'}${fmtT(s.t)}</text>`;
-      }
-      g += `<g class="tl-ev ${crit ? 'r-critical' : 'r-high'}${s.observed ? ' obs' : ''}${sel.fac === s.i ? ' on' : ''}" data-fac="${s.i}"><line x1="${ex}" x2="${ex}" y1="${ly + 3}" y2="${TL.H - TL.bot}"/><circle cx="${ex}" cy="${ly}" r="4"/>
-        <title>${esc(F[s.i].name)} · ${crit ? 'CRITICAL' : 'HIGH RISK'} · ${s.observed ? 'observed' : 'forecast ' + pct(s.prob)} · ${fmtT(s.t)}</title></g>`;
-    });
+    // Crossings that share a moment are grouped; each group gets one label placed in the
+    // first lane where it fits, with a leader line back to its marker. Positions always
+    // come from the event time — only the labels move.
+    const shown = evs.slice(0, 18).sort((a, b) => a.t - b.t);
+    const CH = 4.6, LANE_Y = [20, 32, 44];
+    const label = (s2) => `${focusI != null ? (s2.level === 'CRITICAL' ? 'CRITICAL' : 'HIGH RISK') : `${SYS_SHORT[sysOf(s2.i)]} ${s2.level === 'CRITICAL' ? 'critical' : 'high'}`} ${s2.observed ? '' : '~'}${fmtT(s2.t)}`;
+    // Group while the next crossing would land inside the previous label's own width:
+    // a group is a window the chart genuinely cannot label separately.
+    const groups = [];
+    for (const s2 of shown) {
+      const gx = x(s2.t), last = groups[groups.length - 1];
+      const need = last ? (last.items.length === 1 ? label(last.items[0]).length : 22) * CH + 14 : 0;
+      if (last && gx - last.x < need) { last.items.push(s2); last.crit = last.crit || s2.level === 'CRITICAL'; last.t1 = s2.t; }
+      else groups.push({ x: gx, t: s2.t, t1: s2.t, items: [s2], crit: s2.level === 'CRITICAL' });
+    }
+    const laneEnd = LANE_Y.map(() => -1e9);
+    for (const grp of groups) {
+      const one = grp.items.length === 1 ? grp.items[0] : null;
+      const nCrit = grp.items.filter((z) => z.level === 'CRITICAL').length;
+      const txt = one ? label(one)
+        : `${grp.items.length} crossings ${grp.items.some((z) => !z.observed) ? '~' : ''}${fmtT(grp.t)}${grp.t1 > grp.t ? '–' + fmtT(grp.t1) : ''}`;
+      const w = txt.length * CH + 12;
+      let lane = LANE_Y.findIndex((_, n) => grp.x > laneEnd[n]);
+      if (lane < 0) lane = LANE_Y.length - 1;
+      const flip = grp.x + w > TL.W - TL.padR;
+      const lx = flip ? grp.x - 7 : grp.x + 7;
+      laneEnd[lane] = Math.max(laneEnd[lane], (flip ? grp.x : grp.x + w) + 10);
+      const ly = LANE_Y[lane];
+      const cls = grp.crit ? 'r-critical' : 'r-high';
+      const picked = grp.items.some((z) => z.i === sel.fac);
+      const tip = grp.items.map((z) => `${F[z.i].name} · ${z.level === 'CRITICAL' ? 'CRITICAL' : 'HIGH RISK'} · ${z.observed ? 'observed' : 'forecast ' + pct(z.prob)} · ${fmtT(z.t)}`).join('\n');
+      g += `<line x1="${grp.x}" x2="${grp.x}" y1="${ly + 4}" y2="${TL.top - 6}" class="tl-lead ${cls}"/>`;
+      g += `<text x="${lx.toFixed(1)}" y="${ly + 3}" text-anchor="${flip ? 'end' : 'start'}" class="tl-evl ${cls}${picked ? ' on' : ''}" data-fac="${grp.items[0].i}">${esc(txt)}${one ? '' : ` (${nCrit} critical)`}<title>${esc(tip)}</title></text>`;
+      grp.items.forEach((s2) => {
+        const ex = x(s2.t);
+        g += `<g class="tl-ev ${s2.level === 'CRITICAL' ? 'r-critical' : 'r-high'}${s2.observed ? ' obs' : ''}${sel.fac === s2.i ? ' on' : ''}" data-fac="${s2.i}">
+          <line x1="${ex}" x2="${ex}" y1="${TL.top - 6}" y2="${TL.H - TL.bot}"/>
+          <circle cx="${ex}" cy="${TL.top - 6}" r="${sel.fac === s2.i ? 5 : 3.4}"/>
+          <title>${esc(F[s2.i].name)} · ${s2.level === 'CRITICAL' ? 'CRITICAL' : 'HIGH RISK'} · ${s2.observed ? 'observed' : 'forecast ' + pct(s2.prob)} · ${fmtT(s2.t)}</title></g>`;
+      });
+    }
+    // A crowded group is listed in full under the chart, so no crossing is unreachable.
+    const big = groups.filter((grp) => grp.items.length > 1);
     $('bdTL').innerHTML = `
       <div class="bd-h"><h2 id="bdTLh">Crisis timeline <span class="faint">T+0 → T+72 h</span></h2><span class="bd-sub-r">${title}</span></div>
       <svg id="bdTLsvg" class="tl-svg" viewBox="0 0 ${TL.W} ${TL.H}" role="img" aria-label="72-hour crisis timeline">${g}</svg>
+      ${big.length ? `<div class="tl-groups">${big.map((grp) => `<details class="tl-grp"><summary><b class="${grp.crit ? 'r-critical' : 'r-high'}">${grp.items.length}</b> crossings ${fmtT(grp.t)}${grp.t1 > grp.t ? '–' + fmtT(grp.t1) : ''}</summary><ul>${grp.items.map((z) => `<li><button type="button" data-fac="${z.i}" class="${sel.fac === z.i ? 'on' : ''}">${esc(F[z.i].name)}</button><span>${z.level === 'CRITICAL' ? 'CRITICAL' : 'HIGH'} · ${z.observed ? 'observed' : pct(z.prob)} · ${fmtT(z.t)}</span></li>`).join('')}</ul></details>`).join('')}</div>` : ''}
       <p class="bd-legend"><i class="ln-k obs"></i>Observed <i class="ln-k fc"></i>Forecast (median) ${focusI != null ? '<i class="sw band"></i>10–90% range ' : ''}<i class="dotk r-high"></i>HIGH <i class="dotk r-critical"></i>CRITICAL <span>${evs.length ? 'Hollow: forecast. Click a crossing to select it, or the chart to move the time.' : sc.c ? 'No crossing for this crisis.' : 'No threshold crossing observed or forecast.'}</span></p>`;
   }
 
@@ -367,46 +465,71 @@
   }
 
   // ── System impact matrix ───────────────────────────────────────────────
-  // Stress flowing now along learned links from the row system to the column system
-  // (posterior weight × upstream stress, summed). Derived from the engine's links; the
-  // engine has no system-level matrix of its own.
+  // One cell = all learned links from the row system to the column system. Two facts are
+  // kept apart deliberately: whether the learner has *established* a link (status), and
+  // how much stress is *flowing* along it right now (weight x upstream stress). A
+  // candidate link carrying nothing is not the same as no link at all, and neither is
+  // evidence of transmission, so they are drawn differently and labelled separately.
   function drawMatrix() {
     const sc = scope(), { systems, links } = M;
-    const v = {}, n = {};
+    const cell = {};
     for (const l of links) {
-      if (l.status === 'pruned' || (sc.set && !sc.set.has(l.from) && !sc.set.has(l.to))) continue;
+      if (sc.set && !sc.set.has(l.from) && !sc.set.has(l.to)) continue;
       const key = l.a + '>' + l.b;
-      v[key] = (v[key] || 0) + l.flow; n[key] = (n[key] || 0) + 1;
+      const c = cell[key] || (cell[key] = { n: 0, confirmed: 0, candidate: 0, pruned: 0, flow: 0 });
+      c.n++; c[l.status]++;
+      if (l.status !== 'pruned') c.flow += l.flow;
     }
-    const max = Math.max(0, ...Object.values(v));
-    const bin = (x) => (max < 0.01 ? 0 : x / max >= 0.75 ? 4 : x / max >= 0.45 ? 3 : x / max >= 0.2 ? 2 : x / max >= 0.05 ? 1 : 0);
-    const cells = systems.map((a) => `<tr><th>${SYS_SHORT[a]}</th>${systems.map((b) => {
-      const key = a + '>' + b;
-      if (!n[key]) return '<td class="mx-none" title="No learned link">·</td>';
-      return `<td class="mx-${bin(v[key])}${sel.edge === key ? ' on' : ''}" data-edge="${a !== b ? key : ''}" title="${A.SYS_LABEL[a]} → ${A.SYS_LABEL[b]}: ${n[key]} link${n[key] > 1 ? 's' : ''}, flow ${v[key].toFixed(3)}"></td>`;
+    const live = Object.values(cell).filter((c) => c.confirmed || c.candidate);
+    const max = Math.max(0, ...live.map((c) => c.flow));
+    const flowing = max >= 0.005;
+    const bin = (x) => (!flowing ? 0 : x / max >= 0.75 ? 4 : x / max >= 0.45 ? 3 : x / max >= 0.2 ? 2 : x / max >= 0.05 ? 1 : 0);
+    const body = systems.map((a) => `<tr><th scope="row" title="${A.SYS_LABEL[a]}">${SYS_SHORT[a]}</th>${systems.map((b) => {
+      const key = a + '>' + b, c = cell[key];
+      if (!c || (!c.confirmed && !c.candidate)) {
+        const pruned = c && c.pruned;
+        return `<td class="mx-none" title="${A.SYS_LABEL[a]} → ${A.SYS_LABEL[b]}: ${pruned ? `${c.pruned} link(s), all pruned — the learner rejected them` : 'no candidate link'}">${pruned ? '×' : '·'}</td>`;
+      }
+      const carrying = flowing && c.flow >= max * 0.05;
+      const kind = carrying ? 'mx-' + bin(c.flow) : c.confirmed ? 'mx-idle' : 'mx-cand';
+      const what = carrying ? `carrying ${c.flow.toFixed(3)}` : c.confirmed ? 'confirmed, carrying nothing now' : 'candidate, awaiting evidence';
+      return `<td class="${kind}${sel.edge === key ? ' on' : ''}" tabindex="0" role="button" data-edge="${a !== b ? key : ''}"
+        title="${A.SYS_LABEL[a]} → ${A.SYS_LABEL[b]}: ${c.n} link${c.n > 1 ? 's' : ''} (${c.confirmed} confirmed, ${c.candidate} candidate${c.pruned ? ', ' + c.pruned + ' pruned' : ''}) — ${what}">${carrying ? '' : c.confirmed ? '○' : '·'}</td>`;
     }).join('')}</tr>`).join('');
     $('bdMx').innerHTML = `
-      <div class="bd-h"><h2 id="bdMxh">System impact matrix</h2></div>
-      <div class="mx-wrap"><table class="mx"><thead><tr><th></th>${systems.map((b) => `<th>${SYS_SHORT[b].slice(0, 4)}</th>`).join('')}</tr></thead><tbody>${cells}</tbody></table>
-      <div class="mx-key"><span><i class="mx-4"></i>High</span><span><i class="mx-3"></i>Elevated</span><span><i class="mx-2"></i>Moderate</span><span><i class="mx-1"></i>Low</span><span><i class="mx-0"></i>Minimal</span><span><i class="mx-none"></i>No link</span></div></div>
-      <p class="bd-note">Row → column: stress flowing now along learned links (weight × upstream stress), relative to the strongest pair${max < 0.01 ? '; nothing is flowing yet' : ''}. Derived from the facility links; the diagonal is links inside a system.</p>`;
+      <div class="bd-h"><h2 id="bdMxh">System impact matrix</h2><span class="bd-sub-r">${flowing ? 'stress flowing now' : 'no transmission yet'}</span></div>
+      ${!flowing ? `<p class="mx-state">The learner has found candidate links between these systems, but <b>none is carrying stress at ${fmtT(L.t)}</b>. Nothing here is evidence of transmission yet — the grid shows where a link could carry stress if the upstream system is pushed.</p>` : ''}
+      <div class="mx-wrap"><table class="mx"><caption class="sr-only">Learned links from each row system to each column system</caption>
+        <thead><tr><th></th>${systems.map((b) => `<th scope="col" title="${A.SYS_LABEL[b]}">${SYS_SHORT[b].slice(0, 4)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+      <div class="mx-key">${flowing ? '<span><i class="mx-4"></i>Most flow</span><span><i class="mx-2"></i>Some</span><span><i class="mx-1"></i>Trace</span>' : ''}<span><i class="mx-idle"></i>Confirmed, idle</span><span><i class="mx-cand"></i>Candidate</span><span><i class="mx-none"></i>No link</span></div></div>
+      <p class="bd-note">Row → column. Colour shows stress flowing now (posterior weight × upstream stress); an outline shows a link the learner has established that is not carrying anything. <b>×</b> marks pairs whose links were rejected. The diagonal is links inside one system.</p>`;
   }
 
-  // ── Critical facilities ────────────────────────────────────────────────
+  // ── Facilities at risk ─────────────────────────────────────────────────
+  // "Critical facilities" listed sites whose risk now is NORMAL because their crossing is
+  // forecast, which reads as a contradiction. Observed and forecast are separated here.
   function drawFacilities() {
     const { R, facs, seq, F, sysOf } = M, sc = scope();
     const nextCrit = (i) => seq.find((s) => s.i === i && s.level === 'CRITICAL' && (s.observed || s.prob >= 0.5));
     const list = facs.filter(sc.inScope).map((i) => ({ i, r: R[i], nc: nextCrit(i) }))
-      .filter((x) => x.r >= 0.55 || x.nc).sort((a, b) => (b.r >= C.CRIT) - (a.r >= C.CRIT) || (a.nc ? a.nc.t : 999) - (b.nc ? b.nc.t : 999) || b.r - a.r);
+      .filter((x) => x.r >= 0.55 || x.nc)
+      .sort((a, b) => (b.r >= C.CRIT) - (a.r >= C.CRIT) || (a.nc ? a.nc.t : 999) - (b.nc ? b.nc.t : 999) || b.r - a.r);
+    const nowCrit = list.filter((x) => x.r >= C.CRIT).length, nowHigh = list.filter((x) => x.r >= 0.55 && x.r < C.CRIT).length;
+    const shown = facsAll ? list : list.slice(0, 8);
     $('bdFac').innerHTML = `
-      <div class="bd-h"><h2 id="bdFach">Critical facilities <span class="faint">(${list.length})</span></h2></div>
-      ${list.length ? `<div class="tbl-wrap"><table class="bd-tbl"><thead><tr><th>#</th><th>Facility</th><th>System</th><th>Risk now</th><th>CRITICAL</th></tr></thead><tbody>
-        ${list.slice(0, 8).map((x, n) => { const st = stateOf(x.r); return `<tr class="${sel.fac === x.i ? 'on' : ''}" data-fac="${x.i}"><td class="num faint">${n + 1}</td><td>${esc(F[x.i].name)}</td><td>${SYS_SHORT[sysOf(x.i)]}</td><td><span class="pill r-${st.key}"><span class="dot"></span>${st.label}</span></td><td class="num">${!x.nc ? '—' : x.nc.observed ? 'now' : `~${fmtT(x.nc.t)} · ${pct(x.nc.prob)}`}</td></tr>`; }).join('')}
-      </tbody></table></div>${list.length > 8 ? `<p class="bd-note">and ${list.length - 8} more.</p>` : ''}`
-        : '<p class="ni-empty">No facility is at HIGH RISK now or forecast to reach CRITICAL.</p>'}`;
+      <div class="bd-h"><h2 id="bdFach">Facilities at risk <span class="faint">(${list.length})</span></h2>
+        <span class="bd-sub-r">${nowCrit ? `${nowCrit} critical now` : nowHigh ? `${nowHigh} high now` : 'none yet — all forecast'}</span></div>
+      ${list.length ? `<div class="tbl-wrap"><table class="bd-tbl"><thead><tr><th>#</th><th>Facility</th><th>System</th>
+        <th title="State of the analysis at the issue time">Now</th><th title="First forecast crossing of CRITICAL, with its probability">Reaches CRITICAL</th></tr></thead><tbody>
+        ${shown.map((x, n) => { const st = stateOf(x.r); return `<tr class="${sel.fac === x.i ? 'on' : ''}" data-fac="${x.i}" tabindex="0"><td class="num faint">${n + 1}</td><td>${esc(F[x.i].name)}</td><td>${SYS_SHORT[sysOf(x.i)]}</td><td><span class="pill r-${st.key}"><span class="dot"></span>${st.label}</span></td><td class="num">${!x.nc ? '<span class="faint">not forecast</span>' : x.nc.observed ? 'already' : `~${fmtT(x.nc.t)} <span class="faint">${pct(x.nc.prob)}</span>`}</td></tr>`; }).join('')}
+      </tbody></table></div>${list.length > 8 ? `<p class="bd-note"><button type="button" class="lnk-btn" id="bdFacMore">${facsAll ? 'Show the first 8' : `Show all ${list.length}`}</button></p>` : ''}`
+        : '<p class="ni-empty">No facility is at HIGH RISK now or forecast to reach CRITICAL from this issue time.</p>'}`;
   }
 
   // ── Recent sensor evidence ─────────────────────────────────────────────
+  // Three different quantities, which a single "reading" column would blur: what the feed
+  // reported, what the filter believes after weighing it, and how far it trusts the feed.
+  // They diverge exactly when a sensor is failing, which is the case worth seeing.
   function drawEvidence() {
     const { e, R, trust, facs, F, k } = M, sc = scope();
     const pool = sel.fac != null ? [sel.fac] : facs.filter(sc.inScope);
@@ -414,18 +537,30 @@
     const spark = (i) => {
       const pts = []; for (let kk = Math.max(0, k - 12); kk <= k; kk++) { const y = e.obs[kk * e.N + i]; if (!Number.isNaN(y)) pts.push([kk - k + 12, y]); }
       if (pts.length < 2) return '<span class="faint">no data</span>';
-      return `<svg class="ev-spark" viewBox="0 0 60 18"><path d="${pts.map(([t, y], n) => `${n ? 'L' : 'M'}${(t * 5).toFixed(1)} ${(16 - y * 14).toFixed(1)}`).join('')}"/></svg>`;
+      return `<svg class="ev-spark" viewBox="0 0 60 18" aria-hidden="true"><path d="${pts.map(([t, y], n) => `${n ? 'L' : 'M'}${(t * 5).toFixed(1)} ${(16 - y * 14).toFixed(1)}`).join('')}"/></svg>`;
     };
+    const rows = list.map((i) => {
+      const y = e.obs[k * e.N + i], off = Number.isNaN(y), bad = trust[i] < 0.5;
+      const gap = !off && Math.abs(y - R[i]) >= 0.15;
+      const tag = off ? '<span class="ni-tag pruned">offline</span>'
+        : bad ? '<span class="ni-tag candidate">quarantined</span>'
+        : gap ? '<span class="ni-tag watch">disagrees</span>' : '<span class="ni-tag ok">healthy</span>';
+      return `<tr class="${sel.fac === i ? 'on' : ''}" data-fac="${i}" tabindex="0">
+        <td><span class="num">${esc(F[i].sensor)}</span><div class="faint">${esc(F[i].name)}</div></td>
+        <td class="num${gap || bad ? ' ev-off' : ''}">${off ? '—' : pct(y)}</td>
+        <td class="num">${pct(R[i])}</td>
+        <td class="num ${bad ? 'ev-bad' : ''}">${pct(trust[i])}</td>
+        <td>${spark(i)}</td><td>${tag}</td></tr>`;
+    }).join('');
+    const quarantined = list.filter((i) => trust[i] < 0.5 || Number.isNaN(e.obs[k * e.N + i])).length;
     $('bdEv').innerHTML = `
-      <div class="bd-h"><h2 id="bdEvh">Recent sensor evidence</h2></div>
-      <div class="tbl-wrap"><table class="bd-tbl"><thead><tr><th>Sensor</th><th>Reading</th><th>6 h</th><th>Status</th></tr></thead><tbody>
-      ${list.map((i) => {
-        const y = e.obs[k * e.N + i], off = Number.isNaN(y), bad = trust[i] < 0.5, st = stateOf(off ? 0 : y);
-        return `<tr class="${sel.fac === i ? 'on' : ''}" data-fac="${i}"><td><span class="num">${esc(F[i].sensor)}</span><div class="faint">${esc(F[i].name)}</div></td>
-          <td class="num">${off ? '—' : pct(y)}</td><td>${spark(i)}</td>
-          <td>${off ? '<span class="ni-tag pruned">offline</span>' : bad ? `<span class="ni-tag candidate" title="Trust ${pct(trust[i])}">distrusted</span>` : `<span class="pill r-${st.key}"><span class="dot"></span>${st.label}</span>`}</td></tr>`;
-      }).join('')}</tbody></table></div>
-      <p class="bd-note">Simulated sensor readings on the risk scale, with the filter's trust in each feed.</p>`;
+      <div class="bd-h"><h2 id="bdEvh">Sensor evidence</h2><span class="bd-sub-r">${quarantined ? `${quarantined} feed${quarantined > 1 ? 's' : ''} not trusted` : 'all feeds agree'}</span></div>
+      <div class="tbl-wrap"><table class="bd-tbl ev-tbl"><thead><tr>
+        <th>Sensor</th><th title="What the feed reported at this step">Feed</th>
+        <th title="What the filter believes after weighing the feed against the ensemble and upstream sensors">Analysis</th>
+        <th title="How much influence the filter still gives this feed">Trust</th><th>6 h</th><th>State</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="faint">No facility in scope.</td></tr>'}</tbody></table></div>
+      <p class="bd-note"><b>Feed</b> and <b>Analysis</b> are both on the model's 0–100 stress scale, not physical units — this scenario generates its sensor streams. Where they disagree the filter has discounted the feed; <b>Trust</b> is how much influence it still carries.</p>`;
   }
 
   T.router.register('/crises', {
