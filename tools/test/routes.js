@@ -104,7 +104,8 @@ const { chromium } = require('playwright');
   await until(() => /#\/warnings/.test(location.hash) && !!document.querySelector('.wn-phone'));
   await until(() => (document.getElementById('wnSitrep') || {}).textContent.includes('SITUATION REPORT'), null, 90000).catch(() => {});
   const wn = await page.evaluate(() => ({
-    phones: document.querySelectorAll('.wn-phone').length,
+    // one handset preview, plus a language card with its own segment count per configured language
+    phones: document.querySelectorAll('.wn-phone').length + document.querySelectorAll('.wn-lpick').length - 1,
     segs: [...document.querySelectorAll('.wn-seg')].map((s) => s.textContent),
     cap: (document.querySelector('.wn-cap pre') || {}).textContent.slice(0, 40),
     sitrep: (document.getElementById('wnSitrep') || {}).textContent.slice(0, 20),

@@ -21,7 +21,7 @@
 
   let token = 0, L = null, M = null;
   // UI state; products are rebuilt from the engine whenever city, scenario or time change.
-  let ctxKey = '', selId = null, lang = null, channel = 'sms', query = '', fSev = 'all', fUrg = 'all', zoom = 'alert';
+  let ctxKey = '', selId = null, lang = null, channel = 'sms', pview = 'banner', query = '', fSev = 'all', fUrg = 'all', zoom = 'alert';
   const drafts = new Map();   // `${crisis}|${k}|${lang}` → operator's edited text (local only)
   const workflow = new Map(); // `${crisis}|${k}` → { reviewed, ready, simulated } (local exercise workflow)
   let sitrepText = null, sitrepKey = '', sitrepJob = 0;
@@ -85,7 +85,7 @@
           <div>
             <p class="pg-kicker">${esc(L.scen.label)} · <span>${esc(L.scen.provenance ? L.scen.provenance.label : 'Simulation')}</span></p>
             <h1>Warnings &amp; public communication</h1>
-            <p class="wn-lede">Prepare and review public and responder alerts for the crises in the registry. Everything is generated from what the twin knew at ${fmtT(L.t)} and must be reviewed before any use.</p>
+            <p class="wn-lede">Select an alert, check its area, then review the public message, CAP payload and situation report generated from what the twin knew at the issue time.</p>
           </div>
           <p class="wn-asof" id="wnAsof"></p>
         </header>
@@ -123,6 +123,7 @@
       plan: plan.ids.length ? { ids: plan.ids, catalog: p.CATALOG, result: plan.result, deadline: p.deadline(L.k, plan.ids) } : null,
     });
     sitrepKey = `${ctxKey}|${L.k}`;
+    drawReady();
     if (!playing) drawStudio();
   }
   function drawAll() { drawAsof(); drawSummary(); drawTimeline(); drawQueue(); drawCoverage(); drawInspector(); drawStudio(); drawFlow(); }
@@ -294,7 +295,7 @@
     const chip = (kind, val, label, count) => `<button type="button" class="wn-chip" data-${kind}="${val}" aria-pressed="${(kind === 'sev' ? fSev : fUrg) === val}">${label}${count != null ? ` <span>${count}</span>` : ''}</button>`;
     $('wnQueue').innerHTML = `
       <div class="bd-h"><h2 id="wnQh">Alert queue <span class="faint">${M.alerts.length}</span></h2></div>
-      ${M.alerts.length ? `
+      ${M.alerts.length ? `<div class="wn-qtop">
       <label class="bd-search"><span aria-hidden="true">${T.icons.UI.search}</span><input id="wnSearch" type="search" value="${esc(query)}" placeholder="Search crises, areas" autocomplete="off" aria-label="Search alerts"></label>
       <div class="wn-chips" role="group" aria-label="Filter by severity">${chip('sev', 'all', 'All', M.alerts.length)}${['Extreme', 'Severe', 'Moderate'].filter((s) => M.alerts.some((a) => a.g.severity === s)).map((s) => chip('sev', s, s, M.alerts.filter((a) => a.g.severity === s).length)).join('')}</div>
       <div class="wn-chips" role="group" aria-label="Filter by urgency">${chip('urg', 'all', 'Any timing')}${urgs.filter((u) => M.alerts.some((a) => a.g.urgency === u)).map((u) => chip('urg', u, u, M.alerts.filter((a) => a.g.urgency === u).length)).join('')}</div>
@@ -303,13 +304,30 @@
           <span class="wn-qi-type">${esc(a.c.type)}</span>
           <span class="wn-qi-area">${esc(V.places(a.c.districts, 2))}</span>
           <span class="wn-qi-meta">${a.g.urgency} · ${a.g.certainty} · ${a.inEffect ? 'in effect now (observed)' : `expected ${esc(stamp(a.onsetT))} (forecast)`}</span>
-          <span class="wn-qi-st">${esc(wfLabel(a))}</span></button></li>`).join('') || '<li class="ni-empty">No alert matches the filters.</li>'}</ul>
+          <span class="wn-qi-st">${esc(wfLabel(a))}</span></button></li>`).join('') || '<li class="ni-empty">No alert matches the filters.</li>'}</ul></div>
       ${windows()}`
-      : `<p class="ni-empty">No crisis is in the registry at ${fmtT(L.t)}, so there is no public alert to prepare. The situation report is still available below.</p>`}`;
+      : `<p class="ni-empty">No crisis is in the registry at ${fmtT(L.t)}, so there is no public alert to prepare. The situation report is still available below.</p>`}
+      <div class="wn-rd" id="wnReady"></div>`;
+    drawReady();
     const s = $('wnSearch');
     if (s && document.activeElement && document.activeElement.id === 'wnSearch') s.focus();
   }
 
+  // Readiness of every product the page generates, across all alerts in the queue:
+  // per language, how many alerts fit one SMS segment; the CAP payloads; the SITREP.
+  function drawReady() {
+    const el = $('wnReady'); if (!el) return;
+    const A = M.alerts, n = A.length;
+    const rows = M.cfg.langs.map((l) => {
+      const ss = A.map((a) => a.sms[l]), fit = ss.filter(segOk).length, worst = ss.reduce((m, x) => Math.max(m, x.segments), 0);
+      const enc = ss.length ? [...new Set(ss.map((x) => x.encoding))].join('/') : '—';
+      return `<li><b lang="${l}">${esc(T.comms.LANG_NAME[l])}</b><span class="faint">${enc}</span><span class="${!n ? 'faint' : fit === n ? 'ok' : 'warn'}">${!n ? 'no alert' : fit === n ? `✓ ${n === 1 ? 'one segment' : `all ${n} fit one segment`}` : `! ${n - fit} of ${n} need up to ${worst} segments`}</span></li>`;
+    }).join('');
+    el.innerHTML = `<h4>Communication readiness <span class="faint">all alerts at ${fmtT(L.t)}</span></h4>
+      <ul class="wn-rdl">${rows}
+        <li><b>CAP 1.2</b><span class="faint">${M.cfg.langs.length} info block${M.cfg.langs.length > 1 ? 's' : ''} each</span><span class="${n ? 'ok' : 'faint'}">${n ? `✓ ${n} payload${n > 1 ? 's' : ''} · Exercise` : 'none to issue'}</span></li>
+        <li><b>SITREP</b><span class="faint">responders</span><span class="${sitrepText ? 'ok' : 'faint'}">${sitrepText ? '✓ generated' : 'building…'}</span></li></ul>`;
+  }
   function badge(a) {
     if (!a.change || !M.before) return '';
     const since = fmtT(M.before.t);
@@ -326,7 +344,7 @@
       <rect x="${x(a.onsetT)}" y="${20 + n * rowH + 2}" width="${Math.max(2, x(a.expiresT) - x(a.onsetT))}" height="11" rx="2" class="wn-wb"><title>${esc(a.c.id)}: from ${fmtT(a.onsetT)} (${a.inEffect ? 'observed' : 'forecast'}) to ${fmtT(a.expiresT)}</title></rect></g>`).join('');
     const ticks = [0, 24, 48, 72].map((t) => `<text x="${x(t)}" y="12" text-anchor="middle" class="wn-wt">${fmtT(t).replace('.0h', '')}</text>`).join('');
     const hgt = 24 + list.length * rowH;
-    return `<div class="wn-win"><h4>Alert windows <span class="faint">onset → generated expiry</span></h4>
+    return `<div class="wn-win wn-sub"><h4>Alert windows <span class="faint">onset → generated expiry</span></h4>
       <svg viewBox="0 0 ${W} ${hgt}" role="img" aria-label="When each alert applies">${ticks}${rows}<line x1="${x(L.t)}" x2="${x(L.t)}" y1="14" y2="${hgt}" class="wn-wnow"/></svg></div>`;
   }
 
@@ -335,6 +353,7 @@
   // selection and the issue time. Wheel or the buttons zoom, dragging pans.
   function drawCoverage() {
     const a = selected(), geo = L.geo, F = L.e.F;
+    $('wnCov').parentElement.classList.toggle('none', !M.alerts.length); // no alert: panels size to their content
     if (!a) { lastDrawn = ''; $('wnCov').innerHTML = `<div class="bd-h"><h2 id="wnCh">Alert coverage</h2></div><p class="ni-empty">No alert area to show at ${fmtT(L.t)}.</p>`; return; }
     const P = S.projector(geo);
     if (!$('wnMap')) mapShell();
@@ -477,10 +496,11 @@
     const a = selected();
     if (!a) { $('wnInsp').innerHTML = `<div class="bd-h"><h2 id="wnIh">Selected alert</h2><span class="ni-tag pruned">exercise</span></div><p class="ni-empty">Nothing to inspect at ${fmtT(L.t)}.</p>`; return; }
     const c = a.c, F = L.e.F, R = L.e.now.subarray(L.k * L.e.N, (L.k + 1) * L.e.N);
-    const top = c.members.slice().sort((x, y) => R[y] - R[x]).slice(0, 4);
+    const top = c.members.slice().sort((x, y) => R[y] - R[x]).slice(0, 3);
     const advice = T.comms.TXT[lang][c.family][1].replace('{ems}', M.cfg.ems);
     $('wnInsp').innerHTML = `
       <div class="bd-h"><h2 id="wnIh">Selected alert</h2><span class="ni-tag pruned">exercise</span></div>
+      <div class="wn-ibody">
       <h3 class="wn-ih"><span class="num">${esc(c.id)}</span> ${esc(c.type)} <span class="wn-sev ${SEV_CLS[a.g.severity]}">${a.g.severity}</span></h3>
       <p class="wn-iarea">${esc(V.places(c.districts, 4))}, ${esc(L.geo.city)}</p>
       <dl class="wn-dl">
@@ -499,7 +519,7 @@
       <p class="wn-guid" lang="${lang}">${esc(advice)}</p>
       <h4>Message readiness</h4>
       <ul class="wn-ready">${M.cfg.langs.map((l) => { const s = a.sms[l]; const ok = segOk(s); return `<li><button type="button" data-lang="${l}" aria-pressed="${l === lang}">${esc(T.comms.LANG_NAME[l])}</button><span class="${ok ? 'ok' : 'warn'}">${ok ? '✓ one message' : `! ${s.segments} messages`} · ${s.encoding} · ${s.chars} chars · ${s.segments} segment${s.segments > 1 ? 's' : ''}</span></li>`; }).join('')}</ul>
-      <p class="wn-links"><a href="${esc(V.crisisHref(c.id))}">Crisis detail</a> · <a href="${esc(S.href('/crises', { c: c.id }))}">Crises board</a> · <a href="${esc(S.href('/twin', { c: c.id, a: null }))}">City twin</a></p>`;
+      <p class="wn-links"><a href="${esc(V.crisisHref(c.id))}">Crisis detail</a> · <a href="${esc(S.href('/crises', { c: c.id }))}">Crises board</a> · <a href="${esc(S.href('/twin', { c: c.id, a: null }))}">City twin</a></p></div>`;
   }
 
   // The twin's analysis for the alert's current members at every issued step up to now,
@@ -529,23 +549,33 @@
       else {
         const s = a.sms[lang], dk = `${a.c.id}|${L.k}|${lang}`, draft = drafts.get(dk);
         const ds = draft != null ? T.comms.segments(draft) : null;
+        const edited = draft != null && draft !== s.text;
         body = `
-          <div class="wn-langs" role="tablist" aria-label="Language">${cfg.langs.map((l) => `<button type="button" role="tab" data-lang="${l}" aria-selected="${l === lang}">${esc(T.comms.LANG_NAME[l])}</button>`).join('')}</div>
+          <div class="wn-sbar">
+            <div class="wn-lpicks" role="tablist" aria-label="Language" style="--n:${cfg.langs.length}">${cfg.langs.map((l) => { const x = a.sms[l]; return `<button type="button" role="tab" class="wn-lpick" data-lang="${l}" aria-selected="${l === lang}"><b lang="${l}">${esc(T.comms.LANG_NAME[l])}</b><span class="wn-seg${x.segments > 1 ? ' tight' : ''}">${x.encoding} · ${x.chars} chars · ${x.segments} segment${x.segments > 1 ? 's' : ''}</span></button>`; }).join('')}</div>
+            <div class="seg wn-pv" role="group" aria-label="Preview style"><button type="button" data-pview="banner" aria-pressed="${pview === 'banner'}">Notification</button><button type="button" data-pview="full" aria-pressed="${pview === 'full'}">Full-screen alert</button></div>
+          </div>
           <div class="wn-sms-grid">
-            <div class="wn-phones">${cfg.langs.map((l) => phone(a, l)).join('')}</div>
+            <div class="wn-phonecol">${phone(a, lang)}</div>
             <div class="wn-edit">
-              <h4>Generated message <span class="faint">${esc(T.comms.LANG_NAME[lang])} · canonical, from the generator</span></h4>
+              <div class="wn-ed-h"><h4>Generated message <span class="faint">canonical · ${esc(T.comms.LANG_NAME[lang])}</span></h4><span class="wn-src canon">Used in the CAP</span></div>
               <pre class="wn-canon" id="wnCanon" lang="${lang}">${esc(s.text)}</pre>
-              <p class="wn-val ${segOk(s) ? 'ok' : 'warn'}">${s.encoding} · ${s.chars} characters · ${s.segments} SMS segment${s.segments > 1 ? 's' : ''}${segOk(s) ? '' : ` · longer than one ${s.encoding === 'GSM-7' ? 'GSM-7 (160 characters)' : 'UCS-2 (70 characters)'} message: costs ${s.segments} segments`}</p>
-              <h4>Local draft <span class="faint">your edit; does not change the CAP alert and is not approved</span></h4>
-              <textarea id="wnDraft" rows="4" lang="${lang}" aria-label="Edit a local draft of the message">${esc(draft != null ? draft : s.text)}</textarea>
+              <p class="wn-val ${segOk(s) ? 'ok' : 'warn'}">${s.encoding} · ${s.chars} characters · ${s.segments} SMS segment${s.segments > 1 ? 's' : ''}${segOk(s) ? ' · fits one message' : ` · over one ${s.encoding === 'GSM-7' ? 'GSM-7 (160)' : 'UCS-2 (70)'} message`}</p>
+              <div class="wn-ed-h"><h4>Local draft <span class="faint">not approved · does not change the CAP</span></h4><span class="wn-src${edited ? ' edit' : ''}" id="wnSrc">${edited ? 'Edited locally' : 'Same as generated'}</span></div>
+              <textarea id="wnDraft" rows="3" lang="${lang}" aria-label="Edit a local draft of the message">${esc(draft != null ? draft : s.text)}</textarea>
               <p class="wn-val ${ds ? (segOk(ds) ? 'ok' : 'warn') : ''}" id="wnDraftVal">${ds ? `${draft === s.text ? 'Same as generated' : 'Edited'} · ${ds.encoding} · ${ds.chars} characters · ${ds.segments} segment${ds.segments > 1 ? 's' : ''}` : 'Unchanged from the generated message'}</p>
-              <div class="wn-actions">
-                <button type="button" class="btn" data-copy="wnCanon">Copy generated message</button>
-                <button type="button" class="btn" data-copy="wnDraft">Copy draft</button>
-                <button type="button" class="btn" data-reset-draft ${draft != null ? '' : 'disabled'}>Reset draft</button>
-              </div>
             </div>
+          </div>
+          <div class="wn-actbar">
+            <span class="wn-actl">Message</span>
+            <button type="button" class="btn primary" data-copy="wnCanon">Copy message</button>
+            <button type="button" class="btn" data-copy="wnDraft">Copy draft</button>
+            <button type="button" class="btn" data-reset-draft ${draft != null ? '' : 'disabled'}>Reset draft</button>
+            <button type="button" class="btn" data-pview="${pview === 'full' ? 'banner' : 'full'}">${pview === 'full' ? 'Back to notification' : 'Preview alert'}</button>
+            <span class="wn-actsep" aria-hidden="true"></span>
+            <span class="wn-actl">Products</span>
+            <button type="button" class="btn" data-channel="cap">Inspect CAP 1.2</button>
+            <button type="button" class="btn" data-copy="wnSitrep" ${sitrepText ? '' : 'disabled'}>Copy SITREP</button>
           </div>`;
       }
     } else if (channel === 'cap') {
@@ -568,11 +598,18 @@
     $('wnStudio').innerHTML = head + body + hiddenCap + hiddenSit + '<p class="wn-status" id="wnStatus" role="status" aria-live="polite"></p>';
   }
   const segOk = (s) => s.segments === 1;
+  // One realistic handset preview of the selected language: a lock-screen notification,
+  // or the full-screen presentation phones use for emergency alerts.
   function phone(a, l) {
     const s = a.sms[l], ck = C.clockAt(L.e.t0, L.t);
-    return `<figure class="wn-phone${l === lang ? ' on' : ''}" data-lang="${l}" tabindex="0" role="button" aria-label="${esc(T.comms.LANG_NAME[l])} preview">
-      <div class="wn-phone-top"><span>${ck.time}</span><span class="caps">${esc(T.comms.LANG_NAME[l])}</span></div>
-      <div class="wn-bubble"><span class="wn-bh">Emergency alert · EXERCISE</span><p class="wn-sms" lang="${l}">${esc(s.text)}</p></div>
+    const body = `<p class="wn-sms" lang="${l}">${esc(s.text)}</p>`;
+    return `<figure class="wn-phone ${pview}" aria-label="${esc(T.comms.LANG_NAME[l])} preview">
+      <div class="wn-screen">
+        <div class="wn-phone-top"><span>${ck.time}</span><span class="wn-notch" aria-hidden="true"></span><span>${esc(L.geo.city)}</span></div>
+        ${pview === 'full' ? `<div class="wn-full"><span class="wn-full-i" aria-hidden="true">⚠</span><b>Emergency alert</b><span class="wn-full-x">EXERCISE · ${esc(a.g.severity)}</span>${body}<span class="wn-full-ok">OK</span></div>`
+        : `<div class="wn-lock"><b>${ck.time}</b><span>${esc(ck.day)}</span></div>
+        <div class="wn-bubble"><span class="wn-bh">⚠ Emergency alert · EXERCISE</span>${body}</div>`}
+      </div>
       <figcaption class="wn-seg${s.segments > 1 ? ' tight' : ''}">${s.encoding} · ${s.chars} chars · ${s.segments} segment${s.segments > 1 ? 's' : ''}</figcaption></figure>`;
   }
 
@@ -590,7 +627,7 @@
     const next = !w.reviewed ? ['reviewed', 'Mark reviewed'] : !w.ready ? ['ready', 'Mark exercise-ready'] : !w.simulated ? ['simulated', 'Simulate issue (exercise)'] : null;
     $('wnFlow').innerHTML = `
       <div class="bd-h"><h2 id="wnFh">Alert workflow</h2><span class="ni-tag pruned">local exercise</span></div>
-      <ol class="wn-steps">${steps.map(([t, done, d]) => `<li class="${done ? 'done' : ''}"><span class="wn-stepdot" aria-hidden="true">${done ? '✓' : ''}</span><div><b>${t}</b><span>${d}</span></div><span class="sr-only">${done ? 'done' : 'not done'}</span></li>`).join('')}</ol>
+      <ol class="wn-steps">${steps.map(([t, done, d], n) => { const cur = !done && steps.findIndex((x) => !x[1]) === n; return `<li class="${done ? 'done' : cur ? 'cur' : ''}"${cur ? ' aria-current="step"' : ''}><span class="wn-stepdot" aria-hidden="true">${done ? '✓' : n + 1}</span><div><b>${t}${cur ? ' · next' : ''}</b><span>${d}</span></div><span class="sr-only">${done ? 'done' : cur ? 'next step' : 'not done'}</span></li>`; }).join('')}</ol>
       <div class="wn-actions">${next ? `<button type="button" class="btn primary" data-wf="${next[0]}">${next[1]}</button>` : ''}${w.reviewed ? '<button type="button" class="btn" data-wf="reset">Reset workflow</button>' : ''}</div>
       <p class="bd-note">Kept in this browser tab only. No approval identity, transmission or delivery is recorded, and the EXERCISE marking stays on every product.</p>`;
   }
@@ -599,7 +636,7 @@
   function wire() {
     const page = $('page');
     page.addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-alert],[data-sev],[data-urg],[data-zoom],[data-lang],[data-channel],[data-copy],[data-download],[data-wf],[data-reset-draft],[data-play],[data-speed],[data-tnow],[data-mapzoom]');
+      const b = ev.target.closest('[data-pview],[data-alert],[data-sev],[data-urg],[data-zoom],[data-lang],[data-channel],[data-copy],[data-download],[data-wf],[data-reset-draft],[data-play],[data-speed],[data-tnow],[data-mapzoom]');
       if (!b) return;
       const d = b.dataset;
       if (d.play != null) { play(); return; }
@@ -612,6 +649,7 @@
       if (d.zoom) { zoom = d.zoom; drawCoverage(); return; }
       if (d.lang) { lang = d.lang; drawInspector(); drawStudio(); return; }
       if (d.channel) { channel = d.channel; drawStudio(); return; }
+      if (d.pview) { pview = d.pview; drawStudio(); return; }
       if (d.copy) { copy(d.copy, b); return; }
       if (d.download) { download(d.download); return; }
       if (d.resetDraft != null) { const a = selected(); if (a) drafts.delete(`${a.c.id}|${L.k}|${lang}`); drawStudio(); return; }
@@ -669,6 +707,7 @@
         val.className = `wn-val ${segOk(ds) ? 'ok' : 'warn'}`;
         val.textContent = `${txt === s.text ? 'Same as generated' : 'Edited'} · ${ds.encoding} · ${ds.chars} characters · ${ds.segments} segment${ds.segments > 1 ? 's' : ''}`;
         const r = page.querySelector('[data-reset-draft]'); if (r) r.disabled = false;
+        const src = $('wnSrc'); if (src) { src.textContent = txt === s.text ? 'Same as generated' : 'Edited locally'; src.classList.toggle('edit', txt !== s.text); }
       }
     });
   }
