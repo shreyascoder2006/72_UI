@@ -5,3 +5,10 @@ __pycache__/
 .DS_Store
 dist/
 tools/ml/cache/
+
+# Generated alongside the project document, not tracked: the PDF is a render of
+# Cascade-Intelligence-72-Hour-Warning.docx, which is tracked, and the fonts are
+# redistributable copies of Barlow and IBM Plex Mono from Google Fonts. Both are
+# reproducible; delete these two lines if they should be committed after all.
+Cascade-Intelligence-72-Hour-Warning.pdf
+doc-fonts-*.zip
