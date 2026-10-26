@@ -61,7 +61,9 @@ const { chromium } = require('playwright');
     && /NORMAL|WATCH|HIGH|CRITICAL/.test(nav.chips[0]), nav);
   // Collapsing leaves the icons and survives a reload; the rail is narrower.
   await click('#navCollapse');
-  await page.waitForTimeout(350); // the rail animates to its width
+  // Wait for the rail to reach its width rather than guessing: the twin is still booting
+  // here, so the CSS transition can be starved well past its 0.2 s.
+  await until(() => document.getElementById('nav').getBoundingClientRect().width < 70, null, 15000).catch(() => {});
   const tight = await page.evaluate(() => ({
     on: document.body.classList.contains('nav-tight'),
     w: document.getElementById('nav').getBoundingClientRect().width,
@@ -84,18 +86,18 @@ const { chromium } = require('playwright');
 
   // The three operations pages added in the 6-feature build.
   await click('#nav a[data-nav="/plan"]');
-  await until(() => /#\/plan/.test(location.hash) && !!document.querySelector('.pl-act'));
-  await until(() => !!document.querySelector('.pl-ledger'), null, 70000).catch(() => {});
+  await until(() => /#\/plan/.test(location.hash) && !!document.querySelector('#rpBuild tbody tr'));
+  await until(() => document.querySelectorAll('#rpBuild tbody input:checked').length > 0, null, 70000).catch(() => {});
   let pl = await page.evaluate(() => ({
-    hash: location.hash, acts: document.querySelectorAll('.pl-act').length,
-    ledger: document.querySelectorAll('.pl-cellbox').length,
-    chosen: document.querySelectorAll('.pl-act input:checked').length,
+    hash: location.hash, acts: document.querySelectorAll('#rpBuild tbody tr').length,
+    tiles: document.querySelectorAll('#rpTiles .rp-tile').length,
+    chosen: document.querySelectorAll('#rpBuild tbody input:checked').length,
     title: document.title,
   }));
-  check('Response opens with the planner\'s own recommendation and a ledger',
-    pl.acts >= 7 && pl.ledger === 4 && pl.chosen >= 1 && /^Response/.test(pl.title), pl);
-  await until(() => !!document.querySelector('.pl-chart'), null, 90000).catch(() => {});
-  pl = await page.evaluate(() => ({ chart: !!document.querySelector('.pl-chart'), line: (document.querySelector('.pl-deadline-line') || {}).textContent || '' }));
+  check('Response opens with the planner\'s own recommendation and its outcome',
+    pl.acts >= 7 && pl.tiles === 5 && pl.chosen >= 1 && /^Response/.test(pl.title), pl);
+  await until(() => !!document.querySelector('.rp-dl-line'), null, 90000).catch(() => {});
+  pl = await page.evaluate(() => ({ chart: !!document.querySelector('#rpDl .rp-chart'), line: (document.querySelector('.rp-dl-line') || {}).textContent || '' }));
   check('Response shows the decision deadline', pl.chart && /benefit|value|now/i.test(pl.line), pl);
 
   await click('#nav a[data-nav="/warnings"]');

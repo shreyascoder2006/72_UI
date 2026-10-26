@@ -282,16 +282,28 @@
 
     // Weighted mean risk with the plan minus without it, per facility and step after k:
     // what the twin adds to its own view to show the city as the plan would leave it.
+    // `base` and `plan` are the same weighted means before subtraction, so a caller can
+    // chart the two futures side by side instead of only their difference. `nAt` counts
+    // the expected facilities at or above a level at each step, on the same weighting.
     function trajectory(k, ids, nMembers = 24) {
       const mods = modsFor(ids, k);
-      const delta = new Float32Array(K * N);
-      if (!mods.length) return { k0: k, delta };
+      const delta = new Float32Array(K * N), base = new Float32Array(K * N), plan = new Float32Array(K * N);
+      const nBase = new Float32Array(K), nPlan = new Float32Array(K);
       for (const { m, w } of topMembers(k, nMembers)) {
         const tr = engine.traj.subarray(m * K * N, (m + 1) * K * N);
-        engine.simulate(engine.members[m], buf, 1000 + m, mods, null, { k0: k, from: tr });
-        for (let q = k * N; q < K * N; q++) delta[q] += w * (buf[q] - tr[q]);
+        if (mods.length) engine.simulate(engine.members[m], buf, 1000 + m, mods, null, { k0: k, from: tr });
+        for (let kk = k; kk < K; kk++) {
+          let cb = 0, cp = 0;
+          for (let i = 0; i < N; i++) {
+            const q = kk * N + i;
+            const a = tr[q], b = mods.length ? buf[q] : a;
+            base[q] += w * a; plan[q] += w * b; delta[q] += w * (b - a);
+            if (tierW[i] > 0) { if (a >= CRIT) cb++; if (b >= CRIT) cp++; }
+          }
+          nBase[kk] += w * cb; nPlan[kk] += w * cp;
+        }
       }
-      return { k0: k, delta };
+      return { k0: k, delta, base, plan, nBase, nPlan };
     }
 
     return { CATALOG, evaluate, recommend, recommendAsync, deadline, trajectory };

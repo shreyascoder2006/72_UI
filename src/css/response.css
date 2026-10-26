@@ -1,0 +1,203 @@
+/* Response (#/plan): the decision workspace. Cards, not a reading page — the operator
+   builds a plan on the left and watches the consequence on the right, so the panels sit
+   in a grid and each one owns its own loading and empty state.
+
+   No map, no renderer: everything here is HTML and inline SVG the view draws from
+   planner output, so the page costs nothing when the twin is not running. */
+
+.rp-wrap { max-width: 1420px; }
+
+/* ── Header: the page title beside the two controls that change every figure ──── */
+.rp-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 28px; }
+.rp-head-main { flex: 1 1 520px; min-width: 0; }
+.rp-head-ctl { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; padding-top: 6px; }
+.rp-budget { display: inline-flex; align-items: center; gap: 9px; }
+.rp-budget > span:first-child { font: 600 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+.rp-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+/* ── Outcome tiles: the plan's whole effect in one band ───────────────────────── */
+.rp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); gap: 10px; margin-top: 26px; }
+.rp-tile { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); }
+.rp-tile.wide { grid-column: 1 / -1; }
+.rp-tile.over { border-color: rgba(229, 72, 77, 0.45); background: var(--crit-dim); }
+.rp-tile .k { font-size: var(--fs-sm); line-height: 1.35; color: var(--text-3); }
+.rp-tile .v { margin-top: 7px; font: 600 24px / 1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.rp-tile .v.pend { color: var(--text-4); }
+.rp-tile .v .faint { font-size: 15px; font-weight: 500; }
+.rp-tile .d { margin-top: 5px; font-size: var(--fs-sm); line-height: 1.45; color: var(--text-3); }
+.rp-tile .d.good { color: var(--ok); }
+.rp-tile .d.bad { color: var(--crit); }
+.rp-tile.wide .v { font-size: 19px; }
+
+/* ── Card grid ────────────────────────────────────────────────────────────────── */
+.rp-row { display: grid; gap: 14px; margin-top: 14px; align-items: stretch; }
+.rp-main { grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); }
+.rp-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.rp-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rp-card {
+  display: flex; flex-direction: column; min-width: 0; padding: 14px 16px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.018);
+}
+#rpCmp { margin-top: 14px; }
+.rp-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.rp-h h2 {
+  flex: 1; min-width: 0; margin: 0;
+  font: 600 var(--fs-sm) / 1.2 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-2);
+}
+.rp-h .faint { letter-spacing: 0.06em; }
+.rp-h .btn { height: 24px; padding: 0 11px; font-size: var(--fs-xs); }
+.rp-note { margin: 10px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--text-3); }
+.rp-card > .rp-note:last-child, .rp-card > .rp-legend:last-child { margin-top: auto; padding-top: 10px; }
+.rp-note b { color: var(--text-2); font-weight: 600; }
+.rp-empty { margin: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--text-3); }
+.rp-empty b { color: var(--text-2); font-weight: 600; }
+.rp-card .loading-bar { width: 100%; margin: 14px 0 0; }
+
+/* ── Intervention builder ─────────────────────────────────────────────────────── */
+.rp-sort select {
+  height: 24px; padding: 0 6px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.04); color: var(--text-2); font: 500 var(--fs-xs) / 1 var(--font-ui);
+}
+.rp-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--text-2);
+  font: 500 var(--fs-xs) / 1 var(--font-ui); letter-spacing: 0.06em; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.rp-chip:hover { color: var(--text); border-color: var(--line-strong); }
+.rp-chip.on { color: #dce8fa; border-color: var(--accent-line); background: var(--accent-dim); }
+.rp-chip .faint { font-family: var(--font-mono); }
+.rp-search {
+  display: flex; align-items: center; gap: 8px; height: 30px; margin-top: 9px; padding: 0 10px;
+  border-radius: var(--radius); border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.035); color: var(--text-3);
+}
+.rp-search:focus-within { border-color: var(--accent-line); color: var(--text-2); }
+.rp-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none; color: var(--text); font-size: var(--fs-sm); }
+.rp-search input::placeholder { color: var(--text-3); }
+
+.rp-tbl-wrap { max-height: 430px; overflow-y: auto; margin-top: 10px; scrollbar-width: thin; }
+.rp-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.rp-tbl th {
+  position: sticky; top: 0; z-index: 1; padding: 5px 8px 7px 0; text-align: left; background: var(--panel-solid);
+  font: 600 var(--fs-xs) / 1.2 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
+  border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+}
+.rp-tbl td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text); }
+.rp-tbl.sm { font-size: var(--fs-xs); }
+.rp-tbl td .faint { display: block; margin-top: 2px; font-size: var(--fs-xs); line-height: 1.4; }
+.rp-tbl td.num { text-align: right; white-space: nowrap; vertical-align: middle; }
+.rp-tbl td.good { color: var(--ok); }
+.rp-tbl td.bad { color: var(--crit); }
+.rp-tbl td.pend { color: var(--text-4); }
+.rp-tbl input[type="checkbox"] { margin: 2px 0 0; accent-color: var(--accent); }
+.rp-tbl .pill { height: 18px; padding: 0 6px; font-size: 9.5px; white-space: nowrap; }
+.rp-tbl tbody tr { cursor: pointer; }
+.rp-tbl tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+.rp-tbl tbody tr.on { background: var(--accent-dim); box-shadow: inset 2px 0 0 var(--accent); }
+.rp-tbl tr[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rp-side { color: var(--high); }
+
+/* ── Counterfactual: the two futures, then the aggregates ─────────────────────── */
+.rp-chart { display: block; width: 100%; height: auto; margin-top: 10px; }
+.rp-grid { stroke: var(--line); }
+.rp-ax { fill: var(--text-4); font: 500 10px var(--font-mono); }
+.rp-ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rp-ln.base { stroke: var(--text-3); stroke-dasharray: 5 4; }
+.rp-ln.plan { stroke: var(--accent); }
+/* The gap between the futures is the plan's whole effect, so it is the one filled area. */
+.rp-gap { fill: var(--accent); fill-opacity: 0.13; stroke: none; }
+
+.rp-bars { display: grid; gap: 9px; margin-top: 14px; }
+.rp-bar { display: grid; grid-template-columns: minmax(0, 130px) minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; }
+.rp-bar-k { font-size: var(--fs-xs); line-height: 1.3; color: var(--text-3); }
+.rp-bar-t { display: grid; gap: 2px; }
+.rp-bar-t i { display: block; height: 7px; border-radius: 2px; min-width: 1px; }
+.rp-bar-t i.base { background: rgba(255, 255, 255, 0.16); }
+.rp-bar-t i.plan { background: var(--accent); }
+.rp-bar-v { font-size: var(--fs-xs); color: var(--text-2); text-align: right; white-space: nowrap; }
+.rp-bar-v b { color: var(--text); font-weight: 600; }
+
+.rp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 12px 0 0; font-size: var(--fs-xs); color: var(--text-3); }
+.rp-legend > span { flex: 1 1 100%; line-height: 1.45; }
+.rp-sw { display: inline-block; width: 14px; height: 0; margin-right: 2px; border-top: 2px solid; vertical-align: middle; }
+.rp-sw.base { border-color: var(--text-3); border-top-style: dashed; }
+.rp-sw.plan { border-color: var(--accent); }
+.dotk.after { background: var(--accent); }
+.dotk.gone { background: none; box-shadow: inset 0 0 0 1.5px var(--text-4); }
+
+/* ── Decision deadline ────────────────────────────────────────────────────────── */
+.rp-dl-line { margin: 0; font-size: var(--fs-lg); line-height: 1.55; color: var(--text-2); }
+.rp-dl-line b { color: var(--text); font-weight: 600; }
+.rp-fill { fill: var(--accent); fill-opacity: 0.1; stroke: none; }
+.rp-thr { stroke: var(--text-4); stroke-dasharray: 4 4; }
+.rp-pt { fill: var(--accent); stroke: var(--bg); stroke-width: 1.4; cursor: pointer; }
+.rp-pt:hover { fill: var(--text); }
+.rp-pt.on { fill: var(--text); stroke: var(--accent); stroke-width: 2; }
+.rp-pt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The moment the decision is taken, and on the deadline chart the moment it expires. */
+.rp-now { stroke: var(--crit); stroke-width: 1.4; }
+.rp-nowl { fill: var(--crit); font: 600 9px var(--font-ui); letter-spacing: 0.12em; }
+
+/* ── Forecast crossings: one row per facility, over the window they fall in ───── */
+.rp-ev { cursor: pointer; }
+.rp-ev circle { fill: var(--crit); stroke: var(--bg); stroke-width: 1.2; }
+.rp-ev.gone > circle { fill: none; stroke: var(--text-4); stroke-width: 1.5; }
+.rp-ev.on > circle { stroke: var(--text); stroke-width: 2; }
+.rp-ev:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rp-ev circle.rp-after { fill: var(--accent); }
+.rp-evbg { fill: transparent; }
+.rp-ev:hover .rp-evbg, .rp-ev:focus-visible .rp-evbg { fill: rgba(255, 255, 255, 0.04); }
+.rp-ev.on .rp-evbg { fill: var(--accent-dim); }
+.rp-evl { fill: var(--text-2); font: 500 10.5px var(--font-ui); }
+.rp-ev.gone .rp-evl { fill: var(--text-3); }
+.rp-ev.on .rp-evl { fill: var(--text); }
+.rp-evp { fill: var(--text-4); font: 500 9.5px var(--font-mono); }
+.rp-evd { fill: var(--accent); font: 500 9.5px var(--font-mono); }
+.rp-evt { stroke: var(--line); }
+/* The plan does not cancel a crossing so much as buy hours before it. */
+.rp-shift { stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 3 3; }
+
+/* ── By system ────────────────────────────────────────────────────────────────── */
+.rp-sys { display: grid; gap: 8px; }
+.rp-sys-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 9px; align-items: center; }
+.rp-sys-row .k { font-size: var(--fs-xs); color: var(--text-2); }
+.rp-sys-row .v { display: grid; gap: 1px; font-size: var(--fs-xs); color: var(--text-2); text-align: right; white-space: nowrap; }
+.rp-sys-row .v b { font-weight: 600; }
+.rp-sys-row .v b.good { color: var(--ok); }
+.rp-sys-row .v .faint { font-family: var(--font-ui); font-size: 9.5px; letter-spacing: 0.04em; }
+/* The plan's peak is drawn over the baseline's, so the shortfall is the saving. */
+.rp-sys-bar { position: relative; display: block; height: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.rp-sys-bar i { position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px; }
+.rp-sys-bar i.base { background: rgba(255, 255, 255, 0.16); }
+.rp-sys-bar i.plan { background: var(--rc, var(--accent)); }
+
+/* ── Crews: an abstract capacity, so pips rather than vehicles ────────────────── */
+.rp-pips { display: flex; flex-wrap: wrap; gap: 5px; }
+.rp-pips i { display: block; width: 15px; height: 15px; border-radius: 3px; border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.03); }
+.rp-pips i.used { border-color: var(--accent-line); background: var(--accent); }
+.rp-pips i.over { border-color: rgba(229, 72, 77, 0.6); background: var(--crit); }
+.rp-crew-n { margin: 11px 0 0; font: 600 21px / 1 var(--font-mono); color: var(--text); }
+.rp-crew-n .faint { font-size: var(--fs-md); font-weight: 400; }
+.rp-crew-list { margin: 11px 0 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+.rp-crew-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-xs); color: var(--text-2); }
+.rp-crew-list b { flex: none; color: var(--text); font-weight: 600; }
+
+/* ── Narrow screens ───────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .rp-three { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #rpCrew { grid-column: 1 / -1; }
+}
+@media (max-width: 1040px) {
+  .rp-main, .rp-two, .rp-three { grid-template-columns: minmax(0, 1fr); }
+  #rpCrew { grid-column: auto; }
+  .rp-head-ctl { align-items: stretch; width: 100%; }
+  .rp-btns { justify-content: flex-start; }
+}
+@media (max-width: 560px) {
+  .rp-tile .v { font-size: 20px; }
+  .rp-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .rp-bar-t { grid-column: 1 / -1; }
+  /* Charts keep a readable size and scroll sideways rather than compressing. */
+  .rp-card:has(.rp-chart) .rp-chart { min-width: 460px; }
+  .rp-card:has(.rp-chart) { overflow-x: auto; overscroll-behavior-x: contain; }
+}
