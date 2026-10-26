@@ -12,3 +12,7 @@ tools/ml/cache/
 # reproducible; delete these two lines if they should be committed after all.
 Cascade-Intelligence-72-Hour-Warning.pdf
 doc-fonts-*.zip
+
+# Rendered figures: reproducible from tools/diagrams/ with `node snap.js d1 d2 d3 d4`.
+diagrams/*.png
+tools/diagrams/*.png

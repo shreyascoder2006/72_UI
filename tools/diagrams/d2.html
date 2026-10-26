@@ -1,0 +1,96 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<div class="fig" id="f">
+  <div class="hd">
+    <div>
+      <div class="fignum">FIGURE 02</div>
+      <h1>Data flow — from a sensor in the street to a decision deadline</h1>
+      <p>Six stages. Every instrument in the city is reduced to one thing: a risk stream per facility, sampled every thirty minutes. Everything downstream works on that stream and nothing else, which is why the field layer can be swapped between a simulator and real telemetry without touching the model.</p>
+    </div>
+    <div class="meta">One stream per facility &nbsp;·&nbsp; <b>30-minute step</b><br>Raleigh 44 assets &nbsp;·&nbsp; Nagpur 57 assets<br>145 steps &nbsp;·&nbsp; <b>T+0 → T+72 h</b></div>
+  </div>
+
+  <!-- STAGE 1 -->
+  <div class="band">
+    <div class="bt"><b>1 · Field — what is physically measured</b><span>Seven asset classes, each with the instrument a real deployment would read. Noise is not uniform: a bed census is clean, a traffic camera is not.</span><span class="tag">observation noise shown as “noise”, in risk units</span></div>
+    <div class="row g6">
+      <div class="n"><div class="t">Weather <em>noise 0.06</em></div><div class="s">Tipping-bucket rain gauges, AWS, IMD / NWS radar reflectivity, satellite cloud-top.</div><div class="chips"><span class="c">rain mm/h</span><span class="c">wind</span><span class="c">heat index</span></div></div>
+      <div class="n"><div class="t">Drainage <em>noise 0.04</em></div><div class="s">River and nallah level gauges, ultrasonic depth in culverts, lake spill-level float switches.</div><div class="chips"><span class="c">stage m</span><span class="c">overflow flag</span></div></div>
+      <div class="n"><div class="t">Pumping <em>noise 0.05</em></div><div class="s">Pump-house SCADA: run hours, wet-well level, motor current, trip alarms.</div><div class="chips"><span class="c">SCADA · Modbus</span></div></div>
+      <div class="n cr"><div class="t">Traffic <em>noise 0.07 — noisiest</em></div><div class="s"><b>CCTV with vehicle counting</b>, ANPR gantries, inductive loops, floating-car speed from fleet GPS.</div><div class="chips"><span class="c r">camera-derived</span><span class="c">speed · occupancy</span></div></div>
+      <div class="n"><div class="t">Power <em>noise 0.035</em></div><div class="s">Substation RTUs and feeder SCADA: breaker state, load, transformer oil temperature.</div><div class="chips"><span class="c">SCADA · IEC 61850</span></div></div>
+      <div class="n"><div class="t">Telecom <em>noise 0.04</em></div><div class="s">Site battery hold-up, rectifier state, backhaul reachability, generator fuel level.</div><div class="chips"><span class="c">NMS alarms</span><span class="c w">slow to fail, slow to recover</span></div></div>
+      <div class="n ok"><div class="t">Health &amp; EMS <em>noise 0.02 — cleanest</em></div><div class="s">HMIS bed census and diversion status, ambulance AVL/GPS, 108 / 911 call volume from CAD.</div><div class="chips"><span class="c o">administrative feed</span></div></div>
+    </div>
+    <div class="row g6">
+      <div class="n wat" style="flex:1.6"><div class="t">Citizen reports — the deliberately unreliable channel</div><div class="s">Public submissions and social posts, geotagged. Treated as <b>evidence with a trust weight, never as ground truth</b>: each city's data carries planted false reports (for example “Explosion at Mankapur substation” at T+12.5) which the system must not act on.</div></div>
+      <div class="n" style="flex:1"><div class="t">Survey and static context</div><div class="s">Ward population, building use, floodplain extent, hospital catchments, road hierarchy. Updated seasonally, not in real time.</div></div>
+      <div class="n" style="flex:1"><div class="t">Sampling and transport</div><div class="s">Each source polled or pushed at its own rate, timestamped at source, carried over whatever the utility already runs — MQTT, REST, SFTP drop, or an operator typing it in.</div></div>
+    </div>
+  </div>
+  <div class="dn">▼</div>
+
+  <!-- STAGE 2-3 -->
+  <div class="row" style="gap:10px">
+    <div class="band" style="flex:1">
+      <div class="bt"><b>2 · Ingest — reduce everything to one shape</b><span>The only interface the model has.</span></div>
+      <div class="n k"><div class="t">The contract</div><div class="s">For every facility <em>i</em> and every half-hour step <em>k</em>: one number in [0,1] meaning <b>how far this asset is from failing</b>, plus a timestamp and a quality flag. Nothing else crosses this line.</div><div class="f">obs[k · N + i] → Float32Array</div></div>
+      <div class="n"><div class="t">Normalise</div><div class="s">A metre of river stage, an ampere of motor current and a 40% bed occupancy are mapped onto the same scale by each asset's own capacity and threshold, set in tools/spec*.py.</div></div>
+      <div class="n"><div class="t">Resample &amp; align</div><div class="s">Sources arriving at 1 min, 5 min and hourly are aligned to the 30-minute grid. Late arrivals are accepted; the step is recomputed.</div></div>
+    </div>
+    <div class="band" style="flex:1.35">
+      <div class="bt"><b>3 · Observation model</b><span>Assume the data is wrong.</b><span>Faults are first-class, not exceptions. Each city's dataset injects them on purpose.</span><span class="tag">geo.faults · geo.falseReports</span></div>
+      <div class="row g6">
+        <div class="n cr"><div class="t">stuck</div><div class="s">Gauge frozen at a value while reality moves. <em>DRN-NWH, T+18→40: “Gauge reading frozen”</em></div><div class="chips"><span class="c r">flatline detector</span></div></div>
+        <div class="n cr"><div class="t">dropout</div><div class="s">Feed goes silent. <em>TRF-JRS, T+28→38: “Camera feed offline”</em></div><div class="chips"><span class="c r">obs = NaN</span></div></div>
+        <div class="n cr"><div class="t">bias</div><div class="s">Reading offset but plausible — the hardest kind. <em>WX-ITW, +0.3 from T+30: “debris in funnel”</em></div><div class="chips"><span class="c r">residual drift</span></div></div>
+      </div>
+      <div class="n"><div class="t">Trust, estimated online — not configured</div><div class="s">Each stream carries a trust score from its own <b>EWMA one-step-ahead residual</b> and a flatline test. A stream the model keeps being surprised by is down-weighted automatically, and its forecast widens instead of breaking. <b>A 42% trust score is never displayed as a 42% physical reading.</b></div><div class="f">engine.js · trust[k · N + i] · resid[i]</div></div>
+    </div>
+  </div>
+  <div class="dn">▼</div>
+
+  <!-- STAGE 4-5 -->
+  <div class="band acc">
+    <div class="bt"><b>4 · Assimilation &amp; 5 · Learning — the loop that runs at every step</b><span>This is the part that makes it a forecast rather than a dashboard. It repeats 145 times per run, per facility.</span><span class="tag">localised particle filter · ARD</span></div>
+    <div class="row g6">
+      <div class="n"><div class="t">Propagate</div><div class="s">All 200 members advance one step under their own hazard draw, capacities and link weights.</div><div class="chips"><span class="c a">M = 200</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">Compare</div><div class="s">Each member's prediction for each facility is scored against what the (possibly faulty) sensor actually said.</div></div>
+      <div class="ar s">→</div>
+      <div class="n k"><div class="t">Re-weight, per facility</div><div class="s">Weights are <b>localised</b>: being wrong about a pump in the north does not discredit a member's view of a hospital in the south.</div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">Forget</div><div class="s">Old evidence decays at λ = 0.985 per step — about 23 hours of memory — so the filter tracks a drifting situation instead of locking onto the start of it.</div><div class="chips"><span class="c a">λ = 0.985</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">Guard diversity</div><div class="s">Adaptive tempering keeps the effective sample size above 12%, so the ensemble can never collapse onto a single confident future.</div><div class="chips"><span class="c a">ESS ≥ 12%</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n ok" style="flex:1.3"><div class="t">Learn the dependency graph</div><div class="s">Sparse Bayesian learning with <b>automatic relevance determination</b> over the streams: an edge the data stops supporting decays toward zero. This is why the graph has <b>pruned</b> edges — a configured graph has no such thing.</div></div>
+    </div>
+    <div class="row g6">
+      <div class="n" style="flex:0 0 14%"><div class="t">Then forecast</div><div class="s">From the weighted members, out to T+72.</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight"><div class="t">Risk per facility per step</div><div class="s">145 × N, with a band from member spread — not a single line</div></div>
+      <div class="n tight"><div class="t">Only stress above normal propagates</div><div class="s">gThr: an asset running inside its design limit passes nothing downstream</div></div>
+      <div class="n tight"><div class="t">Most probable failure sequence</div><div class="s">cascade() — observed crossings to date, forecast crossings after</div></div>
+      <div class="n tight"><div class="t">Time to critical</div><div class="s">Median crossing hour and P(critical) at +6/12/24 h</div></div>
+    </div>
+  </div>
+  <div class="dn">▼</div>
+
+  <!-- STAGE 6 -->
+  <div class="band">
+    <div class="bt"><b>6 · Products — what leaves the system</b><span>Each is a different audience reading the same state at the same issue time.</span></div>
+    <div class="row g6">
+      <div class="n"><div class="t">Cascade-R</div><div class="s">Stress through learned links ÷ stress from the hazard. At or above 1 the cascade sustains itself and stopping the hazard no longer stops it.</div><div class="chips"><span class="c a">→ Crises</span></div></div>
+      <div class="n"><div class="t">Crisis registry</div><div class="s">Connected stressed facilities grouped into named emergencies with an ID, a stage, a footprint and the next facility forecast to cross.</div><div class="chips"><span class="c a">→ Crises · twin</span></div></div>
+      <div class="n k"><div class="t">Plan, cost and deadline</div><div class="s">The plan re-simulated on the best-matching members; then re-run with the crews starting 2, 4 … 24 h later to turn “act soon” into <b>an hour</b>.</div><div class="chips"><span class="c a">→ Response</span></div></div>
+      <div class="n"><div class="t">CAP 1.2 alert</div><div class="s">Severity, urgency and certainty derived from the registry, not written by hand. The polygon is the crisis footprint itself.</div><div class="chips"><span class="c a">→ Warnings</span></div></div>
+      <div class="n"><div class="t">Public SMS</div><div class="s">Per language, with the real encoding cost: GSM-7 at 160 chars, UCS-2 at 70 for Devanagari.</div><div class="chips"><span class="c a">→ Warnings · WhatsApp</span></div></div>
+      <div class="n ok"><div class="t">Plain-language area brief</div><div class="s">A sentence with a time in it, the nearest hospital now and at +6/+12 h, and the roads expected to close.</div><div class="chips"><span class="c o">→ My area</span></div></div>
+    </div>
+  </div>
+
+  <div class="ft">
+    <div class="note w"><b>Where the prototype actually sits today</b><p>Stage 1 is <b>not connected</b>. In place of the field layer, <code style="font-family:'IBM Plex Mono';font-size:11px;color:#79a7e3">scenarios.js</code> generates the same streams synthetically — with the noise, the stuck gauges, the dropouts and the false reports included — for 27 scenarios across two cities. <b>Everything from stage 2 rightward is unchanged by that substitution</b>, which is the whole reason the boundary is drawn where it is.</p></div>
+    <div class="note"><b>What connecting it for real would take</b><p>One adapter per source that emits <code style="font-family:'IBM Plex Mono';font-size:11px;color:#79a7e3">{facility, timestamp, value, quality}</code> onto the stage-2 contract. The hard parts are institutional, not technical: data-sharing agreements across the discom, the water board, traffic police and the hospital network — the same boundaries that make the cascade invisible in the first place.</p></div>
+  </div>
+</div>

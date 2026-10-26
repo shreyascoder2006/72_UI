@@ -1,0 +1,103 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<div class="fig" id="f">
+  <div class="hd">
+    <div>
+      <div class="fignum">FIGURE 04</div>
+      <h1>Inside the engine — how one cascade is forecast and broken</h1>
+      <p>A worked trace of the Nagpur monsoon reconstruction at T+37 h. The same four mechanisms run for every scenario: an ensemble that carries uncertainty, a filter that bends it toward the evidence, a graph learned from the streams, and a counterfactual that re-simulates the city to price an action.</p>
+    </div>
+    <div class="meta">nagpur / monsoon2023 &nbsp;·&nbsp; issued <b>T+37.0 h</b><br>57 assets &nbsp;·&nbsp; 200 members &nbsp;·&nbsp; 145 steps<br>recommendation computed in <b>~1.6 s</b></div>
+  </div>
+
+  <!-- 1. ENSEMBLE -->
+  <div class="row" style="gap:10px">
+    <div class="band" style="flex:1.05">
+      <div class="bt"><b>1 · Why 200 futures instead of one</b><span>Borrowed from numerical weather prediction.</span></div>
+      <div class="n"><div class="t">Each member is a different plausible city</div><div class="s">Not noise around one answer. Every member draws its own storm timing and totals, its own drainage and substation capacities, and its own dependency link weights — then the whole city is simulated forward under that draw.</div><div class="chips"><span class="c a">rain timing ±3.5 h</span><span class="c a">intensity lognormal</span><span class="c a">capacity per asset</span></div></div>
+      <div class="n"><div class="t">Probability is read from the spread</div><div class="s">“A 73% chance Ambazari T-point goes critical” means <b>146 of 200 members had it cross</b> — not a confidence interval drawn around a point forecast.</div></div>
+      <div class="n cr"><div class="t">Known weakness, measured not hidden</div><div class="s">The ensemble is <b>over-dispersed</b>: its 80% band contains the truth 92–93% of the time. It is too humble rather than overconfident — the safer failure, but still a calibration error.</div></div>
+    </div>
+
+    <!-- 2. FILTER -->
+    <div class="band acc" style="flex:1.35">
+      <div class="bt"><b>2 · The filter that bends it toward reality</b><span>Localised particle filter with forgetting. Runs at every one of the 145 steps.</span><span class="tag">engine.js</span></div>
+      <div class="row g6">
+        <div class="n tight"><div class="t">Observe</div><div class="s">Sensor says 0.61 at the Civil Lines control room</div></div>
+        <div class="ar s">→</div>
+        <div class="n tight"><div class="t">Score</div><div class="s">Member A predicted 0.58 · Member B predicted 0.31</div></div>
+        <div class="ar s">→</div>
+        <div class="n tight k"><div class="t">Re-weight</div><div class="s">A gains weight, B loses it — <b>for that facility only</b></div></div>
+      </div>
+      <div class="n"><div class="t">Why localisation matters</div><div class="s">A member that misread a pump in the north keeps its credibility about a hospital in the south. Without this, one bad gauge discredits otherwise-correct futures across the whole city and the forecast collapses.</div></div>
+      <div class="row g6">
+        <div class="n tight"><div class="t">Forgetting <em>λ = 0.985</em></div><div class="s">≈23 h of memory, so the filter tracks a situation that is itself changing rather than anchoring on hour one</div></div>
+        <div class="n tight"><div class="t">Tempering <em>ESS ≥ 12%</em></div><div class="s">If too few members carry real weight, the update is softened — the ensemble can never collapse onto one future</div></div>
+        <div class="n tight cr"><div class="t">Distrust <em>λ → 0.82</em></div><div class="s">A stream whose trust falls below 0.5 is forgotten three times faster: a frozen gauge stops steering the forecast</div></div>
+      </div>
+    </div>
+
+    <!-- 3. GRAPH -->
+    <div class="band" style="flex:1.1">
+      <div class="bt"><b>3 · The graph, learned not configured</b><span>Sparse Bayesian learning with ARD.</span></div>
+      <div class="n"><div class="t">What is actually inferred</div><div class="s">Whether stress at asset <em>j</em> at step <em>k</em> predicts stress at asset <em>i</em> at step <em>k+1</em>, after accounting for the hazard both are under. Irrelevant causes are driven toward zero precision and drop out.</div></div>
+      <div class="row g6">
+        <div class="n tight cr"><div class="t">confirmed</div><div class="s">posterior weight held up by the streams</div></div>
+        <div class="n tight wat"><div class="t">candidate</div><div class="s">plausible, awaiting evidence</div></div>
+        <div class="n tight dim"><div class="t">pruned</div><div class="s">the data stopped supporting it</div></div>
+      </div>
+      <div class="n ok"><div class="t">The control that proves it works</div><div class="s">Each city's dataset contains <b>seven deliberately fake links</b> that no physical mechanism supports. The learner is scored on whether it prunes them — a configured graph could not be tested this way at all.</div></div>
+      <div class="n"><div class="t">Only excess stress travels</div><div class="s">An asset operating inside its design limit passes nothing downstream. A substation at 60% does not endanger a hospital; the same substation at 94% does.</div></div>
+    </div>
+  </div>
+
+  <!-- 4. CASCADE TRACE -->
+  <div class="band">
+    <div class="bt"><b>4 · The forecast chain, as issued at T+37 h</b><span>Each arrow is a dependency the system learned from the streams — none was supplied by an engineer. Times are the median crossing hour across members; the percentage is the share of members that cross at all.</span><span class="tag">e.cascade(k)</span></div>
+    <div class="row g6">
+      <div class="n k tight"><div class="t">HAZARD</div><div class="s">Cloudburst over the Ambazari catchment<br><b>&gt;100 mm overnight</b></div><div class="chips"><span class="c a">observed</span></div></div>
+      <div class="ar">→</div>
+      <div class="n cr tight"><div class="t">DRAINAGE <em>T+42.5</em></div><div class="s">Ambazari Lake spillway<br>crosses its overflow</div><div class="chips"><span class="c r">100%</span></div></div>
+      <div class="ar">→</div>
+      <div class="n cr tight"><div class="t">DRAINAGE <em>T+43.0</em></div><div class="s">Nag River at Ambazari Rd<br>channel capacity exceeded</div><div class="chips"><span class="c r">97%</span></div></div>
+      <div class="ar">→</div>
+      <div class="n wat tight"><div class="t">ROADS <em>T+43.5</em></div><div class="s">Jhansi Rani Square, Sitabuldi<br>impassable to vehicles</div><div class="chips"><span class="c w">97%</span></div></div>
+      <div class="ar">→</div>
+      <div class="n wat tight"><div class="t">POWER <em>T+43.5</em></div><div class="s">Gayatri Nagar Substation<br>floodwater at the yard</div><div class="chips"><span class="c w">67%</span></div></div>
+      <div class="ar">→</div>
+      <div class="n cr tight"><div class="t">EMS <em>T+43.0</em></div><div class="s">112 Emergency Control Room<br>responses cannot route</div><div class="chips"><span class="c r">92%</span></div></div>
+      <div class="ar">→</div>
+      <div class="n cr tight"><div class="t">HOSPITAL <em>T+44.5</em></div><div class="s">Care Hospital<br>access cut, diverting</div><div class="chips"><span class="c r">critical</span></div></div>
+    </div>
+    <div class="row g6">
+      <div class="n" style="flex:0 0 22%"><div class="t">Cascade-R at this issue time</div><div class="s">Stress arriving through learned links divided by stress arriving from the hazard. Below 1 here: still a hazard problem, not yet self-sustaining.</div></div>
+      <div class="n"><div class="t">The lead time this buys</div><div class="s">The hospital is forecast to divert at <b>T+44.5</b>. The forecast is issued at <b>T+37.0</b> — <b>7.5 hours of warning</b> on a facility nobody is yet looking at, derived from a lake level that has not overflowed yet.</div></div>
+      <div class="n"><div class="t">What a per-system alarm would have seen</div><div class="s">Nothing. Every asset in the chain is inside its own threshold at T+37. The drainage desk sees a full lake, the discom sees a healthy yard, the hospital sees normal access. <b>The chain is only visible across all three.</b></div></div>
+    </div>
+  </div>
+
+  <!-- 5. COUNTERFACTUAL -->
+  <div class="band acc">
+    <div class="bt"><b>5 · Pricing an action — the counterfactual, and the deadline</b><span>Nine actions are generated from this city's own dependency graph. Each is judged by re-simulating the city, not by a stored effectiveness rating.</span><span class="tag">interventions.js</span></div>
+    <div class="row g6">
+      <div class="n tight"><div class="t">Pick the members that match</div><div class="s">Re-simulate on the 32 ensemble members whose history best fits the evidence so far</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight"><div class="t">Run the city twice</div><div class="s">Once doing nothing, once with the plan applied from the decision step onward</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight k"><div class="t">Difference the two</div><div class="s">Critical facility-hours, hospital &amp; EMS hours, P(a hospital goes critical), facilities reaching CRITICAL</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight"><div class="t">Find the side effects</div><div class="s">Any facility whose expected peak <b>rises</b> by more than 3 points — the closure that loads the next corridor</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight ok"><div class="t">Re-run it late</div><div class="s">Same plan, crews starting +2, +4 … +24 h, <b>deciding on the same information</b></div></div>
+    </div>
+    <div class="row g6">
+      <div class="n k" style="flex:1.3"><div class="t">The output nothing else produces: an hour</div><div class="s">For this plan — pre-stage ambulances, barrier the Vasant Nagar substation, close Jhansi Rani Square early, fuel the mobile sites — benefit decays as the start slips. <b>Start by T+47.0 h to keep 80% of it; by T+55.0 h it is worth less than half.</b> That is the difference between “act soon” and a decision a duty officer can defend.</div></div>
+      <div class="n"><div class="t">Why re-simulation, not a lookup table</div><div class="s">An effectiveness rating assumes the action works the same in every event. Re-simulating asks what it does to <b>this</b> event, on the members that match <b>this</b> evidence — which is why the same action scores differently in the cloudburst and in the dam release.</div></div>
+      <div class="n cr"><div class="t">What is deliberately not computed</div><div class="s">No money, no vehicle or pump counts, no travel time, no crew locations, no residents-protected figure. The model does not compute them, so the product does not display them. A crew is an abstract unit of capacity, labelled as one.</div></div>
+    </div>
+  </div>
+
+  <div class="ft">
+    <div class="note"><b>How it is scored</b><p>Replay re-runs the full 72-hour window with the future locked away and grades every forecast against the hidden truth: lead time, probability of detection, false-alarm ratio and reliability. A pretrained foundation model (Chronos-Bolt) is run on identical issue times and facilities as a control — the ensemble wins, mostly on warning lead.</p></div>
+    <div class="note r"><b>The honest limits</b><p>The ensemble and the simulated truth share a model family, so structural error is zero by construction — a real deployment would face model error this test cannot show. The dependency prior is centred near the truth. The browser holds roughly 200–300 facilities before the ensemble gets heavy.</p></div>
+  </div>
+</div>

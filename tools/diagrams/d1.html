@@ -1,0 +1,97 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<div class="fig" id="f">
+  <div class="hd">
+    <div>
+      <div class="fignum">FIGURE 01</div>
+      <h1>System architecture — what runs where</h1>
+      <p>Three tiers. City data is prepared once, offline, in Python. The whole forecasting system then runs inside the browser as static files, with no application server between the operator and the model. A separate Node service carries the public WhatsApp channel.</p>
+    </div>
+    <div class="meta">Cascade Intelligence · <b>72-hour warning</b><br>Nagpur, Maharashtra &nbsp;·&nbsp; Raleigh, North Carolina<br>2,098 lines of engine &nbsp;·&nbsp; <b>no application server</b></div>
+  </div>
+
+  <!-- TIER 1 -->
+  <div class="band">
+    <div class="bt"><b>Tier 1 · Offline preparation</b><span>Python, run once per city. Output is checked in; nothing here runs while the app runs.</span><span class="tag">tools/ · ~25 MB baked</span></div>
+    <div class="row">
+      <div class="n"><div class="t">OpenStreetMap extract</div><div class="s">Facilities, street network, rivers, building footprints for the city bounding box.</div><div class="f">tools/osm/ · tools/fetch_tiles.py</div><div class="chips"><span class="c o">real geography</span><span class="c">Overpass + planet extract</span></div></div>
+      <div class="ar">→</div>
+      <div class="n"><div class="t">Classify &amp; enrich</div><div class="s">Each asset gets a kind (drainage, pump, traffic, power, telecom, EMS, hospital), a capacity, a catchment and a tier weight.</div><div class="f">tools/spec.py · spec_nagpur.py · enrich_buildings.py</div></div>
+      <div class="ar">→</div>
+      <div class="n"><div class="t">Bake vector tiles</div><div class="s">Buildings split by class, facility footprints lifted, served as MVT from disk — the map works with no tile server.</div><div class="f">tools/mvt.py · tools/build_data.py</div><div class="chips"><span class="c">data/ 25 MB</span></div></div>
+      <div class="ar">→</div>
+      <div class="n k"><div class="t">Baked artifacts <em>checked in</em></div><div class="s">Plain JS modules the browser loads directly.</div><div class="chips"><span class="c a">geodata.js 556 KB</span><span class="c a">geodata_nagpur.js 306 KB</span><span class="c a">places.js 25 KB</span><span class="c a">chronos.js 252 KB</span></div></div>
+    </div>
+    <div class="row">
+      <div class="n dim" style="flex:0 0 31%"><div class="t">Pretrained models, run offline</div><div class="s"><b>Chronos-Bolt</b> (amazon/chronos-bolt-small) forecasts every sensor stream zero-shot at each issue time; its answers are baked into chronos.js so the browser never runs it.</div><div class="f">tools/ml/chronos_forecast.py</div></div>
+      <div class="ar s">→</div>
+      <div class="n dim"><div class="t">Why bake it</div><div class="s">The pretrained model is a <b>second opinion used to score the ensemble</b>, not a component of it. Freezing its output keeps the comparison honest: it cannot see anything the ensemble could not.</div><div class="chips"><span class="c">second.js reads it</span><span class="c">returns null for an unscored scenario</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n dim"><div class="t">Search embeddings</div><div class="s">all-MiniLM-L6-v2 via Transformers.js, loaded from CDN at runtime for search-by-meaning in the sidebar. Word matching is the fallback.</div><div class="f">src/js/site/search.js</div></div>
+    </div>
+  </div>
+  <div class="dn">▼</div>
+
+  <!-- TIER 2 -->
+  <div class="band acc">
+    <div class="bt"><b>Tier 2 · Browser runtime</b><span>Static files. One engine instance per city × scenario, cached LRU 2. Everything an operator sees is computed here.</span><span class="tag">src/js/ · vanilla JS on window.TWIN</span></div>
+    <div class="row g6">
+      <div class="n"><div class="t">core.js</div><div class="s">Risk states, thresholds, clock, seeded RNG.</div><div class="chips"><span class="c">CRIT 0.75</span><span class="c">HIGH 0.55</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">scenarios.js <em>+ natural</em></div><div class="s">27 scenarios. Each supplies rain, heat, wind at a site, plus per-facility stress through <b>extra</b>.</div><div class="chips"><span class="c a">20 natural calamities</span></div></div>
+      <div class="ar s">→</div>
+      <div class="n k" style="flex:1.5"><div class="t">engine.js <em>882 lines</em></div><div class="s"><b>200-member ensemble × 145 half-hour steps.</b> Localised particle filter with forgetting, online sensor trust, ARD dependency learning, cascade sequencing.</div><div class="chips"><span class="c a">M = 200</span><span class="c a">K = 145</span><span class="c a">DT = 0.5 h</span><span class="c a">λ = 0.985</span><span class="c a">ESS floor 12%</span></div></div>
+      <div class="ar s">→</div>
+      <div class="col" style="flex:1.35">
+        <div class="n tight"><div class="t">analytics.js</div><div class="s">Cascade-R by system · crisis registry · next crossings</div></div>
+        <div class="n tight"><div class="t">interventions.js</div><div class="s">evaluate · recommend · deadline · trajectory</div></div>
+        <div class="n tight"><div class="t">comms.js · second.js</div><div class="s">CAP 1.2, SMS segments, SITREP · Chronos scoring</div></div>
+      </div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">services.js</div><div class="s">Engine cache (LRU 2), planner, recommendation promise. One shared state, so no two screens can disagree.</div></div>
+    </div>
+    <div class="row g6">
+      <div class="n" style="flex:0 0 13.5%"><div class="t">Views <em>8 features</em></div><div class="s">One shared URL context: city, scenario, time, selection.</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight"><div class="t">Situation</div><div class="s">Briefing view of the twin</div></div>
+      <div class="n tight"><div class="t">Crises</div><div class="s">Registry, learned graph, matrix</div></div>
+      <div class="n tight"><div class="t">City twin</div><div class="s">3D operations room</div></div>
+      <div class="n tight"><div class="t">Response</div><div class="s">Counterfactual + deadline</div></div>
+      <div class="n tight"><div class="t">Warnings</div><div class="s">CAP · SMS · SITREP</div></div>
+      <div class="n tight"><div class="t">What-if</div><div class="s">Cascade knowledge graph</div></div>
+      <div class="n tight ok"><div class="t">My area</div><div class="s">Public, phone-first</div></div>
+    </div>
+    <div class="row g6">
+      <div class="n" style="flex:0 0 13.5%"><div class="t">Render</div><div class="s">Used by the twin only. Every other page is HTML and inline SVG.</div></div>
+      <div class="ar s">→</div>
+      <div class="n tight"><div class="t">MapLibre GL 4.7.1</div><div class="s">Offline MVT from data/ · no tile server required</div></div>
+      <div class="n tight"><div class="t">Custom WebGL2 layer</div><div class="s">Extruded buildings, sun-synced light, ground shadows</div></div>
+      <div class="n tight"><div class="t">three.js 0.160</div><div class="s">Authored glTF facility models at the selected site</div></div>
+      <div class="n tight"><div class="t">Canvas charts</div><div class="s">72-hour timeline, fan charts, sparklines</div></div>
+    </div>
+  </div>
+
+  <div class="row" style="gap:10px">
+    <div style="flex:1.1" class="band">
+      <div class="bt"><b>Tier 3 · Outside the browser</b><span>The only server-side code in the project.</span></div>
+      <div class="row g6">
+        <div class="n"><div class="t">WhatsApp channel <em>Node</em></div><div class="s">Location alerts, safety checks and cascade reports. Rules-first and deterministic — no language model, so nothing is said that the twin did not compute.</div><div class="f">tools/whatsapp/ backend · bridge · pipeline · twin</div></div>
+        <div class="n"><div class="t">Live weather <em>read-only</em></div><div class="s">Open-Meteo ensemble API supplies today's real 72-hour rainfall forecast on <b>My area</b> only, kept deliberately apart from the simulation.</div><div class="f">ensemble-api.open-meteo.com · GFS seamless</div></div>
+      </div>
+    </div>
+    <div style="flex:1" class="band">
+      <div class="bt"><b>What is real, what is simulated</b><span>Stated on every screen in the product, not only here.</span></div>
+      <table>
+        <tr><th style="width:38%">Layer</th><th style="width:22%">Status</th><th>Source</th></tr>
+        <tr><td>Facilities, streets, rivers, buildings</td><td><span class="c o">real</span></td><td class="m">OpenStreetMap, both cities</td></tr>
+        <tr><td>Today's rainfall forecast (My area)</td><td><span class="c o">real, live</span></td><td class="m">Open-Meteo GFS ensemble</td></tr>
+        <tr><td>Chronos-Bolt second opinion</td><td><span class="c a">real model, precomputed</span></td><td class="m">amazon/chronos-bolt-small</td></tr>
+        <tr><td><b>Every sensor reading and outcome</b></td><td><span class="c w">simulated</span></td><td class="m">scenarios.js — see Figure 02</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="ft">
+    <div class="note"><b>Why there is no application server</b><p>The forecast is 200 ensemble members over 145 steps, which modern JavaScript runs in a second or two. Keeping it in the browser means the system deploys as static files and <b>runs on a laptop in a control room with no cloud dependency</b> — which is the condition it would actually be used in.</p></div>
+    <div class="note w"><b>What this architecture does not yet have</b><p>No ingestion connector for live telemetry, no persistence, no multi-user state or audit trail. The engine already consumes one noisy stream per facility, so a live feed replaces the generator in Figure 02 and nothing above it changes — but that connector is not built.</p></div>
+  </div>
+</div>

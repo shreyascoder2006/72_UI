@@ -1,0 +1,92 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<div class="fig" id="f">
+  <div class="hd">
+    <div>
+      <div class="fignum">FIGURE 03</div>
+      <h1>User flow — three roles, one shared state</h1>
+      <p>Eight features, used by three kinds of people who never need the same thing. The invariant underneath all of them: every page renders <b>only what was known at its issue time</b>, and city, scenario, clock and selection all travel in the URL — so any screen can be bookmarked, or sent to a colleague exactly as it was.</p>
+    </div>
+    <div class="meta">Shared context &nbsp;·&nbsp; <b>#/page?city&amp;s&amp;t&amp;a&amp;c&amp;area</b><br>Issue-time isolation enforced in the loader<br><b>No two screens can disagree</b></div>
+  </div>
+
+  <!-- CONTEXT BAR -->
+  <div class="band acc">
+    <div class="bt"><b>The shared context</b><span>Set once, read by every feature. Changing any of it recomputes every panel on every page.</span><span class="tag">src/js/site/store.js · router.js</span></div>
+    <div class="row g6">
+      <div class="n k tight"><div class="t">city</div><div class="s">nagpur · raleigh</div></div>
+      <div class="n k tight"><div class="t">s — scenario</div><div class="s">one of 27, filtered by city</div></div>
+      <div class="n k tight"><div class="t">t — issue time</div><div class="s">T+0 … T+72, clamped to the simulated now</div></div>
+      <div class="n k tight"><div class="t">m — mode</div><div class="s">live or replay</div></div>
+      <div class="n k tight"><div class="t">a — selected asset</div><div class="s">facility id, e.g. HSP-WMR</div></div>
+      <div class="n k tight"><div class="t">c — crisis</div><div class="s">registry id, e.g. CR-NAG-5627</div></div>
+      <div class="n k tight"><div class="t">area — district</div><div class="s">public view only</div></div>
+    </div>
+  </div>
+
+  <!-- LANE 1 -->
+  <div class="band">
+    <div class="bt"><b>Role 1 · Duty officer in the emergency operations centre</b><span>Has the authority to pre-position crews, close roads and call an evacuation. The question is always “what do I do, and by when”.</span><span class="tag">the primary path</span></div>
+    <div class="row g6">
+      <div class="n"><div class="t">① Situation <em>#/</em></div><div class="s">Opens on the city state in computed sentences. Reads the next forecast crossings and the overall risk trajectory.</div><div class="chips"><span class="c">orientation · 20 s</span></div></div>
+      <div class="ar">→</div>
+      <div class="n"><div class="t">② Crises <em>#/crises</em></div><div class="s">Which named emergencies are running, how they couple, and where two of them contend for the same hospital or substation.</div><div class="chips"><span class="c a">picks a crisis → c=</span></div></div>
+      <div class="ar">→</div>
+      <div class="n"><div class="t">③ City twin <em>#/twin</em></div><div class="s">Where it is in physical space: which underpass, which side of the river, which approach to the hospital.</div><div class="chips"><span class="c a">picks a facility → a=</span></div></div>
+      <div class="ar">→</div>
+      <div class="n k" style="flex:1.25"><div class="t">④ Response <em>#/plan</em></div><div class="s"><b>The decision.</b> Builds a plan within the crews available, compares it against doing nothing, and reads the hour by which the crews must start.</div><div class="chips"><span class="c a">budget 3·5·7·10</span><span class="c a">act by T+__</span></div></div>
+      <div class="ar">→</div>
+      <div class="n"><div class="t">⑤ Warnings <em>#/warnings</em></div><div class="s">Issues the SITREP, the CAP alert and the public SMS for the crisis already selected — same footprint, same issue time.</div><div class="chips"><span class="c w">marked EXERCISE</span></div></div>
+    </div>
+    <div class="row g6">
+      <div class="n" style="flex:0 0 18%"><div class="t">At any point</div><div class="s">Scrub the clock backwards.</div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">The forecast changes, because it is re-issued</div><div class="s">Moving <b>t</b> does not reveal a stored answer for that hour — it rebuilds every product from only the evidence that had arrived by then. This is also how the system proves it is not leaking future data.</div></div>
+      <div class="ar s">→</div>
+      <div class="n"><div class="t">Replay mode</div><div class="s">Re-runs the whole 72-hour window with the future locked away and scores every forecast against the hidden truth: lead time, false-alarm rate, calibration.</div></div>
+    </div>
+  </div>
+
+  <!-- LANE 2 + 3 -->
+  <div class="row" style="gap:10px">
+    <div class="band" style="flex:1.18">
+      <div class="bt"><b>Role 2 · Analyst or reviewer</b><span>Not deciding anything. Asking whether to believe it.</span></div>
+      <div class="row g6">
+        <div class="n"><div class="t">Crises → dependency network</div><div class="s">Inspects edges by confidence: <b>confirmed</b>, <b>candidate</b> awaiting evidence, <b>pruned</b>. Pruning is the evidence that the graph was learned rather than configured.</div></div>
+        <div class="ar s">→</div>
+        <div class="n"><div class="t">Sensor evidence panel</div><div class="s">Reads feed, inference and trust as three separate columns — and finds the stuck gauge and the planted false report.</div></div>
+      </div>
+      <div class="row g6">
+        <div class="n"><div class="t">What-if <em>#/whatif</em></div><div class="s">Poses an event at a place and walks the cascade knowledge graph outward from it.</div></div>
+        <div class="ar s">→</div>
+        <div class="n"><div class="t">Replay validation</div><div class="s">Scores the ensemble against Chronos-Bolt on identical issue times and facilities.</div></div>
+      </div>
+    </div>
+    <div class="band" style="flex:1">
+      <div class="bt"><b>Role 3 · A resident</b><span>Needs one sentence and a time, not a dependency graph.</span></div>
+      <div class="row g6">
+        <div class="n ok"><div class="t">My area <em>#/area</em></div><div class="s">Finds their neighbourhood by name or phone location. Gets a verdict with an hour in it, the next 36 hours per system, the nearest hospital now and at +6/+12 h, and the roads expected to close — in English, हिन्दी or मराठी with the city's own helpline numbers.</div><div class="chips"><span class="c o">no risk index</span><span class="c o">no Cascade-R</span><span class="c o">no facility IDs</span></div></div>
+        <div class="ar s">→</div>
+        <div class="n ok"><div class="t">WhatsApp <em>Node service</em></div><div class="s">Shares a location, gets the same answer pushed back. Rules-first and deterministic: a message no rule places gets the menu, never a guess.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURE FLOW -->
+  <div class="band">
+    <div class="bt"><b>Feature flow — what each page consumes and produces</b><span>Everything flows from one engine state; no page recomputes what another already has.</span></div>
+    <table>
+      <tr><th style="width:11%">Feature</th><th style="width:23%">Reads from the engine</th><th style="width:22%">Produces</th><th style="width:20%">Hands on to</th><th>The one question it answers</th></tr>
+      <tr><td><b>Situation</b></td><td class="m">cityAt · crossing · cascade</td><td class="m">computed brief, outlook</td><td class="m">Crises (via a crisis link)</td><td>Is anything wrong, and how fast is it moving?</td></tr>
+      <tr><td><b>Crises</b></td><td class="m">cascadeR · crises · edgesAt · trust</td><td class="m">registry, learned graph, contention matrix</td><td class="m">Twin (a=) · Response (c=)</td><td>Which emergencies are running, and do they feed each other?</td></tr>
+      <tr><td><b>City twin</b></td><td class="m">now · forecast · footprints · flows</td><td class="m">3D state, inspector, route links</td><td class="m">Crises · Response</td><td>Where is it, physically, relative to what matters?</td></tr>
+      <tr><td><b>Response</b></td><td class="m">evaluate · trajectory · deadline · recommend</td><td class="m">plan, counterfactual, act-by hour</td><td class="m">Warnings</td><td>What do I do with the crews I have, and by when?</td></tr>
+      <tr><td><b>Warnings</b></td><td class="m">crises · footprint · comms</td><td class="m">SITREP, CAP 1.2 XML, SMS per language</td><td class="m">the public, WhatsApp</td><td>What goes out, to whom, and does it fit one segment?</td></tr>
+      <tr><td><b>My area</b></td><td class="m">same engine state, plain-language layer</td><td class="m">verdict, hospital access, road closures</td><td class="m">— (terminal)</td><td>Is my street safe, and can I still reach a hospital?</td></tr>
+    </table>
+  </div>
+
+  <div class="ft">
+    <div class="note"><b>The invariant that makes the whole thing reviewable</b><p>Every page is a pure function of (city, scenario, issue time). Nothing is cached across issue times, nothing is written back, and no page can show a figure another page contradicts — because there is one engine instance and they all read it.</p></div>
+    <div class="note w"><b>What the flow is missing for real operations</b><p>No shift handover, no audit trail of who saw what and when, no acknowledgement that an action was actually ordered, and no multi-user state. Plan comparisons survive one visit. An operations centre needs all four.</p></div>
+  </div>
+</div>
